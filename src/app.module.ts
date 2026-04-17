@@ -9,6 +9,7 @@ import { ConfigModule } from './config/config.module';
 import { ConfigService } from './config/config.service';
 import { RedisModule } from './redis/redis.module';
 import { UserModule } from './user/user.module';
+import { AppointmentsModule } from './appointments/appointments.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { UserModule } from './user/user.module';
     }),
     AuthModule,
     UserModule,
+    AppointmentsModule,
     WebsocketModule,
     QueuesModule,
   ],

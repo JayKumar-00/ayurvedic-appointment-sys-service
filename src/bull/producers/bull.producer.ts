@@ -35,9 +35,22 @@ export class BullProducer {
     });
   }
 
-  addReminderJob(data: ReminderJobData) {
+  addReminderJob(
+    data: ReminderJobData,
+    options?: { delay?: number; jobId?: string },
+  ) {
     return this.appointmentQueue.add('send-reminder', data, {
       ...BULL_DEFAULT_JOB_OPTIONS,
+      ...(options?.jobId ? { jobId: options.jobId } : {}),
+      ...(options?.delay && options.delay > 0 ? { delay: options.delay } : {}),
     });
+  }
+
+  async removeReminderJob(jobId: string): Promise<void> {
+    const job = await this.appointmentQueue.getJob(jobId);
+
+    if (job) {
+      await job.remove();
+    }
   }
 }
