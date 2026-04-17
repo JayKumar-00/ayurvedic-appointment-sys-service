@@ -34,6 +34,7 @@ import { JwtPayload } from 'src/auth/strategies/jwt.strategy';
 import { AdminLevelGuard } from './admin-user/guards/admin-level.guard';
 import { SystemAdminGuard } from './admin-user/guards/system-admin.guard';
 import { Staff } from './entity/user.entity';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @ApiTags('Staff')
 @ApiBearerAuth()
@@ -199,6 +200,83 @@ export class StaffController {
     }
 
     return this.staffService.updateStaff(id, updateStaffDto);
+  }
+
+  @Patch(':id/status-toggle')
+  @ApiOperation({ summary: 'Toggle staff member status (active/inactive)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Staff member status toggled successfully',
+  })
+  @ApiBadRequestResponse({ type: ApiErrorResponseDto })
+  @ApiNotFoundResponse({ type: ApiErrorResponseDto })
+  @ApiForbiddenResponse({ type: ApiErrorResponseDto })
+  @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
+  async statusToggle(
+    @Req() req: { user: JwtPayload },
+    @Param('id') id: string,
+    @Query('isActive') isActive: boolean,
+  ) {
+    const user = req.user;
+    if (user.isAdmin && !user.isSystemAdmin) {
+      if (!user.hospitalId) {
+        throw new ForbiddenException(
+          'Admin user must have a hospital assigned',
+        );
+      }
+
+      const staff = await this.staffService.getStaffById(id);
+      const staffHospitalId =
+        (
+          staff.hospitalId as { _id?: { toString: () => string } }
+        )?._id?.toString() ?? staff.hospitalId.toString();
+
+      if (staffHospitalId !== user.hospitalId) {
+        throw new ForbiddenException(
+          'Admin user can only change password for staff from their assigned hospital',
+        );
+      }
+    }
+
+    return this.staffService.statusChange(id, isActive);
+  }
+
+  @Patch(':id/change-password')
+  @ApiOperation({ summary: 'Change staff member password' })
+  @ApiBody({ type: ChangePasswordDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Password changed successfully',
+  })
+  @ApiBadRequestResponse({ type: ApiErrorResponseDto })
+  @ApiNotFoundResponse({ type: ApiErrorResponseDto })
+  @ApiForbiddenResponse({ type: ApiErrorResponseDto })
+  async changePassword(
+    @Req() req: { user: JwtPayload },
+    @Param('id') id: string,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
+    const user = req.user;
+    if (user.isAdmin && !user.isSystemAdmin) {
+      if (!user.hospitalId) {
+        throw new ForbiddenException(
+          'Admin user must have a hospital assigned',
+        );
+      }
+
+      const staff = await this.staffService.getStaffById(id);
+      const staffHospitalId =
+        (
+          staff.hospitalId as { _id?: { toString: () => string } }
+        )?._id?.toString() ?? staff.hospitalId.toString();
+
+      if (staffHospitalId !== user.hospitalId) {
+        throw new ForbiddenException(
+          'Admin user can only change password for staff from their assigned hospital',
+        );
+      }
+    }
+    return this.staffService.changePassword(id, changePasswordDto);
   }
 
   @Delete(':id')

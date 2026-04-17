@@ -14,6 +14,7 @@ import { CreateStaffDto } from './dto/create-user.dto';
 import { Types } from 'mongoose';
 import { UpdateStaffDto } from './dto/update-user.dto';
 import { StaffFilterDto } from './dto/staff-filter.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Injectable()
 export class StaffService {
@@ -180,8 +181,6 @@ export class StaffService {
       }
       if (updateStaffDto) {
         staff.name = updateStaffDto.name ?? staff.name;
-        staff.email = updateStaffDto.email ?? staff.email;
-        staff.password = updateStaffDto.password ?? staff.password;
         staff.phone = updateStaffDto.phone ?? staff.phone;
       }
       await staff.save();
@@ -189,6 +188,41 @@ export class StaffService {
       return staff;
     } catch (err) {
       throw this.handleServiceError(err, 'Failed to update staff');
+    }
+  }
+
+  async changePassword(id: string, changePasswordDto: ChangePasswordDto) {
+    try {
+      const staff = await this.staffModel.findById(id);
+
+      if (!staff) {
+        throw new NotFoundException('Staff not found');
+      }
+      staff.password = await bcrypt.hash(changePasswordDto.password, 10);
+
+      await staff.save();
+
+      return { message: 'Password changed successfully' };
+    } catch (err) {
+      throw this.handleServiceError(err, 'Failed to change password');
+    }
+  }
+
+  async statusChange(id: string, isActive: boolean) {
+    try {
+      const staff = await this.staffModel.findById(id);
+
+      if (!staff) {
+        throw new NotFoundException('Staff not found');
+      }
+
+      staff.isActive = isActive;
+
+      await staff.save();
+
+      return staff;
+    } catch (err) {
+      throw this.handleServiceError(err, 'Failed to change status');
     }
   }
 
