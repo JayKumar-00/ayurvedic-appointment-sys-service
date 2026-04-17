@@ -1,0 +1,29 @@
+import {
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
+
+type AuthRequestUser = {
+  isSystemAdmin?: boolean;
+  isAdmin?: boolean;
+};
+
+@Injectable()
+export class AdminLevelGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    const request = context
+      .switchToHttp()
+      .getRequest<{ user?: AuthRequestUser }>();
+    const user = request.user;
+
+    if (!user?.isSystemAdmin && !user?.isAdmin) {
+      throw new ForbiddenException(
+        'Only SystemAdmin or Admin can perform this action',
+      );
+    }
+
+    return true;
+  }
+}
