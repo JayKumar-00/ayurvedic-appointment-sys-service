@@ -116,4 +116,25 @@ export class RolePermissionController {
   getRoles(@Query() filter: RoleFilterDto) {
     return this.rolePermissionService.getRoles(filter);
   }
+
+  @Get('hospital/:hospitalId')
+  @RequirePermission('roles', 'read')
+  @ApiOperation({ summary: 'Get all roles for a hospital' })
+  @ApiResponse({
+    status: 200,
+    description: 'Hospital roles fetched successfully',
+    type: RoleListResponseDto,
+  })
+  @ApiBadRequestResponse({ type: ApiErrorResponseDto })
+  @ApiForbiddenResponse({ type: ApiErrorResponseDto })
+  @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
+  getRolesByHospital(
+    @Param('hospitalId') hospitalId: string,
+    @Query() filter: RoleFilterDto,
+  ) {
+    return this.rolePermissionService.getRoles({
+      ...filter,
+      hospitalId,
+    });
+  }
 }
