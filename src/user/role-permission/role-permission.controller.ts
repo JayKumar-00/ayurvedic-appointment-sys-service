@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -16,6 +17,7 @@ import {
   ApiInternalServerErrorResponse,
   ApiNotFoundResponse,
   ApiOperation,
+  ApiParam,
   ApiQuery,
   ApiResponse,
   ApiTags,
@@ -117,6 +119,16 @@ export class RolePermissionController {
     return this.rolePermissionService.getRoles(filter);
   }
 
+  @Get(':id')
+  @ApiOperation({ summary: 'Get role by id' })
+  @ApiResponse({ status: 200, description: 'Role fetched successfully' })
+  @ApiForbiddenResponse({ type: ApiErrorResponseDto })
+  @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
+  @ApiParam({ name: 'id', description: 'Role id' })
+  getRoleById(@Param('id') id: string) {
+    return this.rolePermissionService.getRoleByID(id);
+  }
+
   @Get('hospital/:hospitalId')
   @RequirePermission('roles', 'read')
   @ApiOperation({ summary: 'Get all roles for a hospital' })
@@ -136,5 +148,16 @@ export class RolePermissionController {
       ...filter,
       hospitalId,
     });
+  }
+
+  @Delete(':id/delete')
+  @ApiOperation({ summary: 'Delete a role' })
+  @ApiResponse({ status: 200, description: 'Role deleted successfully' })
+  @ApiBadRequestResponse({ type: ApiErrorResponseDto })
+  @ApiNotFoundResponse({ type: ApiErrorResponseDto })
+  @ApiForbiddenResponse({ type: ApiErrorResponseDto })
+  @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
+  deleteRole(@Param('id') id: string) {
+    return this.rolePermissionService.deleteRole(id);
   }
 }

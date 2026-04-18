@@ -20,6 +20,7 @@ import { UpdateRoleStatusDto } from './dto/update-role-status.dto';
 import { UpdateRolePermissionsDto } from './dto/update-role-permissions.dto';
 import { Role, RoleDocument } from './schemas/role.schema';
 import { Types } from 'mongoose';
+import { Staff, StaffDocument } from '../entity/user.entity';
 
 @Injectable()
 export class RolePermissionService {
@@ -30,6 +31,8 @@ export class RolePermissionService {
     private readonly roleModel: Model<RoleDocument>,
     @InjectModel(AdminUser.name)
     private readonly adminUserModel: Model<AdminUserDocument>,
+    @InjectModel(Staff.name)
+    private readonly staffModel: Model<StaffDocument>,
   ) {}
 
   async createRole(createRoleDto: CreateRoleDto) {
@@ -142,6 +145,43 @@ export class RolePermissionService {
         totalPages: Math.ceil(totalItems / limit),
       },
     };
+  }
+
+  async deleteRole(roleId: string) {
+    try {
+      const role = await this.roleModel.findById(roleId);
+
+      if (!role) {
+        throw new NotFoundException('Role not found');
+      }
+
+      const staff = await this.staffModel.findOne({ roleId: role._id });
+
+      if (staff) {
+        throw new ConflictException('Cannot delete role assigned to staff');
+      }
+
+      await role.deleteOne();
+      return { message: 'Role deleted successfully' };
+    } catch (err) {
+      throw this.handleError(err, 'Error deleting role');
+    }
+  }
+
+  async getRoleByID(id: string) {
+    try {
+      const roleId = await this.roleModel
+        .findById(id)
+        .populate('permissions')
+        .populate('hospitalId', 'name code address')
+        .exec();
+      if (!roleId) {
+        throw new NotFoundException('Role not found');
+      }
+      return this.toRoleResponse(roleId);
+    } catch (err) {
+      throw this.handleError(err, 'Error fetching role by ID');
+    }
   }
 
   private toRoleResponse(role: RoleDocument): RoleResponseDto {

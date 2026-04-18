@@ -6,6 +6,7 @@ import { PermissionGuard } from './guards/permission.guard';
 import { RolePermissionController } from './role-permission.controller';
 import { RolePermissionService } from './role-permission.service';
 import { Role, RoleSchema } from './schemas/role.schema';
+import { Staff, StaffSchema } from '../entity/user.entity';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { Role, RoleSchema } from './schemas/role.schema';
     MongooseModule.forFeature([
       { name: Role.name, schema: RoleSchema },
       { name: AdminUser.name, schema: AdminUserSchema },
+      { name: Staff.name, schema: StaffSchema },
     ]),
   ],
   controllers: [RolePermissionController],
