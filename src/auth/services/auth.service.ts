@@ -75,10 +75,13 @@ export class AuthService {
       return this.issueTokens(payload);
     }
 
-    const staffUser = await this.staffModel.findOne({
-      email,
-      isActive: true,
-    });
+    const staffUser = await this.staffModel
+      .findOne({
+        email,
+        isActive: true,
+      })
+      .populate('roleId', 'name permissions')
+      .exec();
 
     if (!staffUser) {
       throw new UnauthorizedException('Invalid email or password');
@@ -93,16 +96,20 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    const staffRole = this.extractRoleDetails(staffUser.roleId);
+
     const payload: JwtPayload = {
       sub: staffUser.id,
       email: staffUser.email,
-      roleId: staffUser.roleId?.toString(),
+      roleId: this.resolveObjectIdString(staffUser.roleId),
       hospitalId: staffUser.hospitalId?.toString() ?? '',
       isSystemAdmin: false,
       isAdmin: false,
     };
 
-    return this.issueTokens(payload);
+    return this.issueTokens(payload, {
+      roleId: staffRole ?? payload.roleId,
+    });
   }
 
   async refresh(refreshDto: RefreshDto) {
@@ -322,8 +329,13 @@ export class AuthService {
       .exec();
 
     if (staffUser) {
+      const staffRole = this.extractRoleDetails(staffUser.roleId);
+
       return {
-        staffUser,
+        id: staffUser.id,
+        email: staffUser.email,
+        roleId: staffRole ?? this.resolveObjectIdString(staffUser.roleId),
+        hospitalId: this.resolveObjectIdString(staffUser.hospitalId),
         isSystemAdmin: false,
         isAdmin: false,
       };
@@ -332,7 +344,10 @@ export class AuthService {
     throw new NotFoundException('User not found');
   }
 
-  private async issueTokens(payload: JwtPayload) {
+  private async issueTokens(
+    payload: JwtPayload,
+    userOverrides?: { roleId?: unknown },
+  ) {
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
         secret: this.configService.jwtAccessSecret,
@@ -357,7 +372,7 @@ export class AuthService {
     const user = {
       id: payload.sub,
       email: payload.email ?? '',
-      roleId: payload.roleId,
+      roleId: userOverrides?.roleId ?? payload.roleId,
       hospitalId: payload.hospitalId,
       isSystemAdmin: payload.isSystemAdmin,
       isAdmin: payload.isAdmin,
@@ -409,5 +424,52 @@ export class AuthService {
     }
 
     return plainPassword === storedPassword;
+  }
+
+  private extractRoleDetails(roleValue: unknown):
+    | {
+        id: string;
+        name: string;
+        permissions: unknown[];
+      }
+    | undefined {
+    if (!roleValue || typeof roleValue !== 'object') {
+      return undefined;
+    }
+
+    const role = roleValue as {
+      id?: string;
+      _id?: unknown;
+      name?: string;
+      permissions?: unknown[];
+    };
+
+    const roleId = role.id ?? this.resolveObjectIdString(role._id);
+    if (!roleId) {
+      return undefined;
+    }
+
+    return {
+      id: roleId,
+      name: role.name ?? '',
+      permissions: Array.isArray(role.permissions) ? role.permissions : [],
+    };
+  }
+
+  private resolveObjectIdString(value: unknown): string {
+    if (!value) {
+      return '';
+    }
+
+    if (typeof value === 'string') {
+      return value;
+    }
+
+    if (typeof value === 'object' && 'toString' in value) {
+      const stringified = (value as { toString: () => string }).toString();
+      return stringified === '[object Object]' ? '' : stringified;
+    }
+
+    return '';
   }
 }
