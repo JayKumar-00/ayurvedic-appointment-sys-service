@@ -197,7 +197,7 @@ export class AuthService {
     const resetTokenHash = this.hashResetToken(resetToken);
 
     const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+    expiresAt.setMinutes(expiresAt.getMinutes() + 7);
 
     if (adminUser) {
       adminUser.resetTokenHash = resetTokenHash;
@@ -351,7 +351,7 @@ export class AuthService {
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
         secret: this.configService.jwtAccessSecret,
-        expiresIn: '15m',
+        expiresIn: '7d',
       }),
       this.jwtService.signAsync(payload, {
         secret: this.configService.jwtRefreshSecret,
@@ -360,7 +360,7 @@ export class AuthService {
     ]);
 
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+    expiresAt.setDate(expiresAt.getDate() + 15);
 
     await this.refreshTokenModel.create({
       userId: payload.sub,
