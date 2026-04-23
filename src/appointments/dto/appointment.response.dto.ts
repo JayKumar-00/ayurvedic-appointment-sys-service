@@ -11,6 +11,18 @@ export class AppointmentResponseDto {
   @ApiPropertyOptional({ type: Object })
   pastMedicalHistory?: Record<string, unknown> | string;
 
+  @ApiPropertyOptional({
+    description: 'Step-2 premedical checkup form data',
+    type: Object,
+  })
+  preMedicalCheckup?: Record<string, unknown>;
+
+  @ApiPropertyOptional({
+    description: 'Step-3 prescription and revisit plan',
+    type: Object,
+  })
+  prescription?: Record<string, unknown>;
+
   @ApiProperty({ example: '66f0f9cb3a5a8dc4d2962001' })
   doctorId!: string;
 

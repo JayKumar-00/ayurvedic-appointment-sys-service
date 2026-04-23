@@ -56,6 +56,12 @@ export class Appointment {
   @Prop({ type: Types.ObjectId, required: false, index: true })
   createdBy?: Types.ObjectId;
 
+  @Prop({ type: SchemaTypes.Mixed })
+  preMedicalCheckup?: Record<string, unknown>;
+
+  @Prop({ type: SchemaTypes.Mixed })
+  prescription?: Record<string, unknown>;
+
   createdAt!: Date;
 
   updatedAt!: Date;

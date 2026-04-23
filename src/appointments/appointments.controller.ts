@@ -34,6 +34,8 @@ import { AppointmentResponseDto } from './dto/appointment.response.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { PermissionGuard } from '../user/role-permission/guards/permission.guard';
 import { RequirePermission } from '../user/role-permission/decorators/require-permission.decorator';
+import { PreMedicalCheckupDto } from './dto/pre-medical-checkup.dto';
+import { PrescriptionStepDto } from './dto/prescription-step.dto';
 
 @ApiTags('Appointments')
 @Controller('appointments')
@@ -83,6 +85,17 @@ export class AppointmentsController {
     return this.appointmentService.getAppointments(filter, req.user);
   }
 
+  @Get(':id/details')
+  @ApiOperation({ summary: 'Get appointment details by id' })
+  @ApiBadRequestResponse({ type: ApiErrorResponseDto })
+  @ApiNotFoundResponse({ type: ApiErrorResponseDto })
+  @ApiForbiddenResponse({ type: ApiErrorResponseDto })
+  @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
+  @ApiParam({ name: 'id', description: 'Appointment id' })
+  getAppointmentDetails(@Param('id') id: string) {
+    return this.appointmentService.getAppointmentsById(id);
+  }
+
   @Put(':id')
   @UseGuards(JwtAuthGuard, PermissionGuard)
   @ApiBearerAuth()
@@ -109,5 +122,97 @@ export class AppointmentsController {
       updateAppointmentDto,
       req.user,
     );
+  }
+
+  @Post(':id/pre-medical-checkup')
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @ApiBearerAuth()
+  @RequirePermission('appointments', 'update')
+  @ApiOperation({ summary: 'Step-2: Save premedical checkup form' })
+  @ApiBody({ type: PreMedicalCheckupDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Premedical checkup saved successfully',
+    type: AppointmentResponseDto,
+  })
+  @ApiBadRequestResponse({ type: ApiErrorResponseDto })
+  @ApiNotFoundResponse({ type: ApiErrorResponseDto })
+  @ApiForbiddenResponse({ type: ApiErrorResponseDto })
+  @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
+  savePreMedicalCheckup(
+    @Req() req: { user: JwtPayload },
+    @Param('id') id: string,
+    @Body() dto: PreMedicalCheckupDto,
+  ) {
+    return this.appointmentService.savePreMedicalCheckup(id, dto, req.user);
+  }
+
+  @Get(':id/pre-medical-checkup')
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @ApiBearerAuth()
+  @RequirePermission('appointments', 'read')
+  @ApiOperation({ summary: 'Get premedical checkup details' })
+  @ApiResponse({
+    status: 200,
+    description: 'Premedical checkup details fetched successfully',
+    type: AppointmentResponseDto,
+  })
+  @ApiBadRequestResponse({ type: ApiErrorResponseDto })
+  @ApiNotFoundResponse({ type: ApiErrorResponseDto })
+  @ApiForbiddenResponse({ type: ApiErrorResponseDto })
+  @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
+  getPreMedicalDetails(
+    @Req() req: { user: JwtPayload },
+    @Param('id') id: string,
+  ) {
+    return this.appointmentService.getPreMedicalDetails(id, req.user);
+  }
+
+  @Post(':id/prescription')
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @ApiBearerAuth()
+  @RequirePermission('appointments', 'update')
+  @ApiOperation({
+    summary: 'Step-3: Save doctor prescription and revisit plan',
+  })
+  @ApiBody({ type: PrescriptionStepDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Prescription step saved successfully',
+    type: AppointmentResponseDto,
+  })
+  @ApiBadRequestResponse({ type: ApiErrorResponseDto })
+  @ApiNotFoundResponse({ type: ApiErrorResponseDto })
+  @ApiForbiddenResponse({ type: ApiErrorResponseDto })
+  @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
+  savePrescriptionStep(
+    @Req() req: { user: JwtPayload },
+    @Param('id') id: string,
+    @Body() dto: PrescriptionStepDto,
+  ) {
+    return this.appointmentService.savePrescriptionStep(id, dto, req.user);
+  }
+
+  @Get(':id/clinical-form')
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @ApiBearerAuth()
+  @RequirePermission('appointments', 'read')
+  @ApiOperation({
+    summary: 'Get complete clinical form (step-1 + step-2 + step-3)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Complete appointment clinical form fetched successfully',
+    type: AppointmentResponseDto,
+  })
+  @ApiBadRequestResponse({ type: ApiErrorResponseDto })
+  @ApiNotFoundResponse({ type: ApiErrorResponseDto })
+  @ApiForbiddenResponse({ type: ApiErrorResponseDto })
+  @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
+  getAppointmentClinicalForm(
+    @Req() req: { user: JwtPayload },
+    @Param('id') id: string,
+  ) {
+    return this.appointmentService.getAppointmentClinicalForm(id, req.user);
   }
 }

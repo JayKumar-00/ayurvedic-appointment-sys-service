@@ -22,6 +22,8 @@ import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { AppointmentFilterDto } from './dto/appointment-filter.dto';
 import { AppointmentListResponseDto } from './dto/appointment-list.response.dto';
 import { AppointmentResponseDto } from './dto/appointment.response.dto';
+import { PreMedicalCheckupDto } from './dto/pre-medical-checkup.dto';
+import { PrescriptionStepDto } from './dto/prescription-step.dto';
 import { Staff, StaffDocument } from '../user/entity/user.entity';
 import {
   Hospital,
@@ -346,6 +348,166 @@ export class AppointmentService {
     }
   }
 
+  async getAppointmentsById(id: string) {
+    try {
+      const appointment = await this.appointmentModel
+        .findById(id)
+        .populate('doctorId', 'name email phone')
+        .populate('hospitalId', 'name code')
+        .exec();
+
+      if (!appointment) {
+        throw new NotFoundException('Appointment not found');
+      }
+      return appointment;
+    } catch (err) {
+      throw this.handleError(err, 'Error fetching appointment by id');
+    }
+  }
+
+  async savePreMedicalCheckup(
+    appointmentId: string,
+    dto: PreMedicalCheckupDto,
+    actor: JwtPayload,
+  ): Promise<AppointmentResponseDto> {
+    try {
+      const appointment = await this.getAppointmentByIdOrThrow(appointmentId);
+      this.assertAppointmentScope(actor, appointment.hospitalId.toString());
+
+      const recordedAt = dto.recordedAt ? new Date(dto.recordedAt) : new Date();
+
+      if (Number.isNaN(recordedAt.getTime())) {
+        throw new BadRequestException('Invalid recordedAt provided');
+      }
+
+      appointment.preMedicalCheckup = {
+        appointmentId: appointment.id,
+        hospitalId: appointment.hospitalId.toString(),
+        recordedBy: actor.sub,
+        patientName: dto.patientName,
+        age: dto.age,
+        gender: dto.gender,
+        chiefComplaint: dto.chiefComplaint,
+        symptoms: dto.symptoms,
+        triageLevel: dto.triageLevel,
+        weight: dto.weight,
+        height: dto.height,
+        bp: dto.bp,
+        pulseRate: dto.pulseRate,
+        temperature: dto.temperature,
+        spO2: dto.spO2,
+        bloodSugar: dto.bloodSugar,
+        painLevel: dto.painLevel,
+        allergies: dto.allergies ?? [],
+        currentMedications: dto.currentMedications ?? [],
+        pastConditions: dto.pastConditions ?? [],
+        familyHistory: dto.familyHistory ?? [],
+        visitType: dto.visitType,
+        notes: dto.notes,
+        recordedAt: recordedAt.toISOString(),
+      };
+
+      await appointment.save();
+
+      const response = this.toAppointmentResponse(appointment);
+      this.webSocketGateway.emitAppointmentUpdated(
+        response.hospitalId,
+        response,
+      );
+
+      return response;
+    } catch (error) {
+      throw this.handleError(error, 'Error saving premedical checkup');
+    }
+  }
+
+  async getPreMedicalDetails(appointmentId: string, actor: JwtPayload) {
+    try {
+      const appointment = await this.getAppointmentByIdOrThrow(appointmentId);
+
+      return appointment;
+    } catch (err) {
+      throw this.handleError(err, 'Error fetching premedical details');
+    }
+  }
+
+  async savePrescriptionStep(
+    appointmentId: string,
+    dto: PrescriptionStepDto,
+    actor: JwtPayload,
+  ): Promise<AppointmentResponseDto> {
+    try {
+      const appointment = await this.getAppointmentByIdOrThrow(appointmentId);
+      this.assertAppointmentScope(actor, appointment.hospitalId.toString());
+
+      if (dto.revisitRequired && !dto.revisitDate) {
+        throw new BadRequestException(
+          'revisitDate is required when revisitRequired is true',
+        );
+      }
+
+      if (!dto.revisitRequired && dto.revisitDate) {
+        throw new BadRequestException(
+          'revisitDate should not be provided when revisitRequired is false',
+        );
+      }
+
+      appointment.prescription = {
+        appointmentId: appointment.id,
+        hospitalId: appointment.hospitalId.toString(),
+        writtenBy: actor.sub,
+        prescription: dto.prescription,
+        medications: dto.medications ?? [],
+        revisitRequired: dto.revisitRequired,
+        revisitDate: dto.revisitDate ?? null,
+        advice: dto.advice,
+        writtenAt: new Date().toISOString(),
+      };
+
+      if (dto.revisitRequired) {
+        appointment.status = 'confirmed';
+      }
+
+      await appointment.save();
+
+      const response = this.toAppointmentResponse(appointment);
+      this.webSocketGateway.emitAppointmentUpdated(
+        response.hospitalId,
+        response,
+      );
+
+      return response;
+    } catch (error) {
+      throw this.handleError(error, 'Error saving prescription step');
+    }
+  }
+
+  async getAppointmentClinicalForm(
+    appointmentId: string,
+    actor: JwtPayload,
+  ): Promise<AppointmentResponseDto> {
+    try {
+      const appointment = await this.appointmentModel
+        .findById(appointmentId)
+        .populate({
+          path: 'doctorId',
+          select: 'name email phone hospitalId roleId isActive',
+        })
+        .populate('hospitalId', 'name code isActive')
+        .exec();
+
+      if (!appointment) {
+        throw new NotFoundException('Appointment not found');
+      }
+
+      this.assertAppointmentScope(actor, appointment.hospitalId.toString());
+
+      return this.toAppointmentResponse(appointment);
+    } catch (error) {
+      throw this.handleError(error, 'Error fetching appointment clinical form');
+    }
+  }
+
   private applyHospitalScope(
     filter: AppointmentFilterDto,
     actor: JwtPayload,
@@ -425,7 +587,7 @@ export class AppointmentService {
   }
 
   private getReminderJobId(appointmentId: string): string {
-    return `appointment-reminder:${appointmentId}`;
+    return `appointment-reminder${appointmentId}`;
   }
 
   private buildLockKey(
@@ -484,6 +646,8 @@ export class AppointmentService {
       id: appointment.id,
       patientDetails: appointment.patientDetails as Record<string, unknown>,
       pastMedicalHistory: appointment.pastMedicalHistory,
+      preMedicalCheckup: appointment.preMedicalCheckup,
+      prescription: appointment.prescription,
       doctorId: this.resolveObjectIdString(appointment.doctorId),
       hospitalId: this.resolveObjectIdString(appointment.hospitalId),
       appointmentDate: appointment.appointmentDate.toISOString(),
@@ -495,6 +659,22 @@ export class AppointmentService {
       createdAt: appointment.createdAt.toISOString(),
       updatedAt: appointment.updatedAt.toISOString(),
     };
+  }
+
+  private async getAppointmentByIdOrThrow(
+    appointmentId: string,
+  ): Promise<AppointmentDocument> {
+    if (!Types.ObjectId.isValid(appointmentId)) {
+      throw new BadRequestException('Invalid appointment id provided');
+    }
+
+    const appointment = await this.appointmentModel.findById(appointmentId);
+
+    if (!appointment) {
+      throw new NotFoundException('Appointment not found');
+    }
+
+    return appointment;
   }
 
   private resolveObjectIdString(value: unknown): string {
