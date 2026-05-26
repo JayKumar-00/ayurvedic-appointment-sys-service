@@ -17,11 +17,6 @@ export class AdminUserFilterDto {
   @IsString()
   search?: string;
 
-  @ApiPropertyOptional({ example: 'hospital-id-123', description: 'Filter by hospital id' })
-  @IsOptional()
-  @IsString()
-  hospitalId?: string;
-
   @ApiPropertyOptional({ example: true, description: 'Filter by admin status' })
   @IsOptional()
   @Transform(toBoolean)

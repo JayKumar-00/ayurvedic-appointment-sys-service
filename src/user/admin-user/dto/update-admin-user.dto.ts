@@ -44,4 +44,21 @@ export class UpdateAdminUserDto {
   @IsOptional()
   @IsString()
   roleId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Whether user is a hospital admin',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isAdmin?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Whether user is a system admin',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isSystemAdmin?: boolean;
+
 }

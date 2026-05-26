@@ -37,4 +37,10 @@ export class ProfileResponseDto {
     example: true,
   })
   isAdmin!: boolean;
+
+  @ApiProperty({
+    description: 'Receptionist flag',
+    example: false,
+  })
+  isReceptionist!: boolean;
 }

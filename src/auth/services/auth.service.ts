@@ -25,6 +25,9 @@ import {
   AdminUserDocument,
 } from '../../user/admin-user/schemas/admin-user.schema';
 import { Staff, StaffDocument } from '../../user/entity/user.entity';
+import { Reception, ReceptionDocument } from '../../reception/Schemas/reception.schema';
+import { Doctor, DoctorDocument } from '../../Doctors/Schemas/doctor.schema';
+import { Assignment, AssignmentDocument } from '../../assignments/schemas/assignments.schema';
 
 @Injectable()
 export class AuthService {
@@ -37,7 +40,13 @@ export class AuthService {
     private readonly adminUserModel: Model<AdminUserDocument>,
     @InjectModel(Staff.name)
     private readonly staffModel: Model<StaffDocument>,
-  ) {}
+    @InjectModel(Reception.name)
+    private readonly receptionModel: Model<ReceptionDocument>,
+    @InjectModel(Doctor.name)
+    private readonly doctorModel: Model<DoctorDocument>,
+    @InjectModel(Assignment.name)
+    private readonly assignmentModel: Model<AssignmentDocument>,
+  ) { }
 
   async login(loginDto: LoginDto) {
     const email = loginDto.email.toLowerCase();
@@ -61,6 +70,20 @@ export class AuthService {
         throw new UnauthorizedException('Role is not assigned to this account');
       }
 
+      let permission = 'View Only';
+      if (adminUser.isSystemAdmin) {
+        permission = 'Full Access';
+      } else {
+        const escapedName = adminUser.name.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const activeAssignment = await this.assignmentModel.findOne({
+          Administrator: { $regex: new RegExp(`^${escapedName}$`, 'i') },
+          isActive: true,
+        }).exec();
+        if (activeAssignment) {
+          permission = activeAssignment.Permission;
+        }
+      }
+
       const roleId = this.resolveRoleId(adminUser);
 
       const payload: JwtPayload = {
@@ -70,11 +93,15 @@ export class AuthService {
         hospitalId: adminUser.hospitalId ?? '',
         isSystemAdmin: adminUser.isSystemAdmin,
         isAdmin: adminUser.isAdmin,
+        isReceptionist: false,
+        name: adminUser.name,
+        permission,
       };
 
       return this.issueTokens(payload);
     }
 
+    // 2. Check Staff User
     const staffUser = await this.staffModel
       .findOne({
         email,
@@ -83,33 +110,96 @@ export class AuthService {
       .populate('roleId', 'name permissions')
       .exec();
 
-    if (!staffUser) {
-      throw new UnauthorizedException('Invalid email or password');
+    if (staffUser) {
+      const isStaffPasswordValid = await this.verifyStaffPassword(
+        loginDto.password,
+        staffUser.password,
+      );
+
+      if (!isStaffPasswordValid) {
+        throw new UnauthorizedException('Invalid email or password');
+      }
+
+      const staffRole = this.extractRoleDetails(staffUser.roleId);
+
+      const payload: JwtPayload = {
+        sub: staffUser.id,
+        email: staffUser.email,
+        roleId: this.resolveObjectIdString(staffUser.roleId),
+        hospitalId: staffUser.hospitalId?.toString() ?? '',
+        isSystemAdmin: false,
+        isAdmin: false,
+        isReceptionist: false,
+      };
+
+      return this.issueTokens(payload, {
+        roleId: staffRole ?? payload.roleId,
+      });
     }
 
-    const isStaffPasswordValid = await this.verifyStaffPassword(
-      loginDto.password,
-      staffUser.password,
-    );
+    // 3. Check Receptionist User
+    const receptionUser = await this.receptionModel.findOne({ email });
 
-    if (!isStaffPasswordValid) {
-      throw new UnauthorizedException('Invalid email or password');
+    if (receptionUser) {
+      const isReceptionPasswordValid = await this.verifyStaffPassword(
+        loginDto.password,
+        receptionUser.password,
+      );
+
+      if (!isReceptionPasswordValid) {
+        throw new UnauthorizedException('Invalid email or password');
+      }
+
+      const payload: JwtPayload = {
+        sub: receptionUser.id,
+        email: receptionUser.email,
+        roleId: 'receptionist',
+        hospitalId: receptionUser.hospitalId?.toString() ?? '',
+        isSystemAdmin: false,
+        isAdmin: false,
+        isReceptionist: true,
+      };
+
+      return this.issueTokens(payload);
     }
 
-    const staffRole = this.extractRoleDetails(staffUser.roleId);
-
-    const payload: JwtPayload = {
-      sub: staffUser.id,
-      email: staffUser.email,
-      roleId: this.resolveObjectIdString(staffUser.roleId),
-      hospitalId: staffUser.hospitalId?.toString() ?? '',
-      isSystemAdmin: false,
-      isAdmin: false,
-    };
-
-    return this.issueTokens(payload, {
-      roleId: staffRole ?? payload.roleId,
+    // 4. Check Doctor User
+    console.log(`[AuthService] Attempting doctor login for email: "${email}"`);
+    const doctorUser = await this.doctorModel.findOne({
+      email: { $regex: new RegExp(`^${email}$`, 'i') }
     });
+
+    if (doctorUser) {
+      console.log(`[AuthService] Doctor found in DB: "${doctorUser.email}". Verifying password...`);
+      const isDoctorPasswordValid = await this.verifyStaffPassword(
+        loginDto.password,
+        doctorUser.password,
+      );
+
+      if (!isDoctorPasswordValid) {
+        console.log(`[AuthService] Doctor password verification failed.`);
+        throw new UnauthorizedException('Invalid email or password');
+      }
+
+      console.log(`[AuthService] Doctor login successful!`);
+
+      const payload: JwtPayload = {
+        sub: doctorUser.id,
+        email: doctorUser.email,
+        roleId: 'doctor',
+        hospitalId: doctorUser.hospitalId?.toString() ?? '',
+        isSystemAdmin: false,
+        isAdmin: false,
+        isReceptionist: false,
+        isDoctor: true,
+        name: doctorUser.name, //
+      };
+
+      return this.issueTokens(payload);
+    }
+
+    // 5. If no user found in any collection
+    throw new UnauthorizedException('Invalid email or password');
   }
 
   async refresh(refreshDto: RefreshDto) {
@@ -157,6 +247,10 @@ export class AuthService {
       hospitalId: decoded.hospitalId,
       isSystemAdmin: decoded.isSystemAdmin,
       isAdmin: decoded.isAdmin,
+      isReceptionist: decoded.isReceptionist,
+      isDoctor: decoded.isDoctor,
+      name: decoded.name,
+      permission: decoded.permission,
     };
 
     return this.issueTokens(payload);
@@ -312,6 +406,20 @@ export class AuthService {
     const adminUser = await this.adminUserModel.findById(userId);
 
     if (adminUser) {
+      let permission = 'View Only';
+      if (adminUser.isSystemAdmin) {
+        permission = 'Full Access';
+      } else {
+        const escapedName = adminUser.name.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const activeAssignment = await this.assignmentModel.findOne({
+          Administrator: { $regex: new RegExp(`^${escapedName}$`, 'i') },
+          isActive: true,
+        }).exec();
+        if (activeAssignment) {
+          permission = activeAssignment.Permission;
+        }
+      }
+
       return {
         id: adminUser.id,
         email: adminUser.email,
@@ -319,6 +427,9 @@ export class AuthService {
         hospitalId: adminUser.hospitalId ?? '',
         isSystemAdmin: adminUser.isSystemAdmin,
         isAdmin: adminUser.isAdmin,
+        isReceptionist: false,
+        name: adminUser.name,
+        permission,
       };
     }
 
@@ -338,6 +449,37 @@ export class AuthService {
         hospitalId: this.resolveObjectIdString(staffUser.hospitalId),
         isSystemAdmin: false,
         isAdmin: false,
+        isReceptionist: false,
+      };
+    }
+
+    const receptionUser = await this.receptionModel.findById(userId);
+
+    if (receptionUser) {
+      return {
+        id: receptionUser.id,
+        email: receptionUser.email,
+        roleId: 'receptionist',
+        hospitalId: receptionUser.hospitalId?.toString() ?? '',
+        isSystemAdmin: false,
+        isAdmin: false,
+        isReceptionist: true,
+      };
+    }
+
+    const doctorUser = await this.doctorModel.findById(userId);
+
+    if (doctorUser) {
+      return {
+        id: doctorUser.id,
+        email: doctorUser.email,
+        roleId: 'doctor',
+        hospitalId: doctorUser.hospitalId?.toString() ?? '',
+        isSystemAdmin: false,
+        isAdmin: false,
+        isReceptionist: false,
+        isDoctor: true,
+        name: doctorUser.name,
       };
     }
 
@@ -376,6 +518,10 @@ export class AuthService {
       hospitalId: payload.hospitalId,
       isSystemAdmin: payload.isSystemAdmin,
       isAdmin: payload.isAdmin,
+      isReceptionist: payload.isReceptionist,
+      isDoctor: payload.isDoctor || false,
+      name: payload.name || undefined,
+      permission: payload.permission,
     };
 
     return {
@@ -428,10 +574,10 @@ export class AuthService {
 
   private extractRoleDetails(roleValue: unknown):
     | {
-        id: string;
-        name: string;
-        permissions: unknown[];
-      }
+      id: string;
+      name: string;
+      permissions: unknown[];
+    }
     | undefined {
     if (!roleValue || typeof roleValue !== 'object') {
       return undefined;
@@ -473,3 +619,4 @@ export class AuthService {
     return '';
   }
 }
+

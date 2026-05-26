@@ -37,6 +37,12 @@ class AuthUserDto {
     example: true,
   })
   isAdmin!: boolean;
+
+  @ApiProperty({
+    description: 'Receptionist permission',
+    example: false,
+  })
+  isReceptionist!: boolean;
 }
 
 export class AuthResponseDto {

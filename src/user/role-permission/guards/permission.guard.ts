@@ -45,7 +45,44 @@ export class PermissionGuard implements CanActivate {
     }
 
     if (user.isAdmin) {
-      return true;
+      const permissionStr = (user as any).permission || 'View Only';
+      if (permissionStr === 'Full Access') {
+        return true;
+      }
+      if (permissionStr === 'View Only') {
+        return requiredPermission.action === 'read';
+      }
+      try {
+        let permissions;
+        if (typeof permissionStr === 'object' && permissionStr !== null) {
+          permissions = permissionStr;
+        } else {
+          permissions = JSON.parse(permissionStr);
+          if (typeof permissions === 'string') {
+            permissions = JSON.parse(permissions);
+          }
+        }
+        const modulePermission = permissions[requiredPermission.module.toLowerCase()];
+        if (!modulePermission) {
+          return false;
+        }
+        const actionKey = requiredPermission.action;
+        return !!modulePermission[actionKey];
+      } catch (e) {
+        return requiredPermission.action === 'read';
+      }
+    }
+
+    if (user.isDoctor) {
+      if (requiredPermission.module === 'appointments') {
+        return true;
+      }
+    }
+
+    if (user.isReceptionist) {
+      if (requiredPermission.module === 'appointments') {
+        return true;
+      }
     }
 
     if (!user.roleId) {

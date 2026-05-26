@@ -10,8 +10,8 @@ export class AdminUserResponseDto {
   @ApiProperty({ example: 'admin.hospital@ayurvedic.com' })
   email!: string;
 
-  @ApiProperty({ example: 'hospital-id-123' })
-  hospitalId!: string;
+  @ApiProperty({ example: '66f0f9cb3a5a8dc4d2961002', required: false })
+  hospitalId?: string;
 
   @ApiProperty({ example: 'role-reception', required: false })
   roleId?: string;

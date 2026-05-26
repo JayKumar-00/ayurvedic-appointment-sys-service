@@ -3,7 +3,12 @@ import { HydratedDocument } from 'mongoose';
 
 export type AdminUserDocument = HydratedDocument<AdminUser>;
 
-@Schema({ timestamps: true, collection: 'users' })
+@Schema({
+  timestamps: true,
+  collection: 'users',
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true },
+})
 export class AdminUser {
   @Prop({ required: true, trim: true })
   name!: string;
@@ -23,9 +28,9 @@ export class AdminUser {
   @Prop({ trim: true, index: true })
   roleId?: string;
 
-  @Prop({ index: true })
+  @Prop({ trim: true, index: true })
   hospitalId?: string;
-
+  
   @Prop({ default: false, index: true })
   isAdmin!: boolean;
 
@@ -43,5 +48,4 @@ export class AdminUser {
 }
 
 export const AdminUserSchema = SchemaFactory.createForClass(AdminUser);
-AdminUserSchema.index({ email: 1 }, { unique: true });
-AdminUserSchema.index({ hospitalId: 1, isAdmin: 1 }, { unique: true });
+AdminUserSchema.index({ hospitalId: 1, isAdmin: 1 });

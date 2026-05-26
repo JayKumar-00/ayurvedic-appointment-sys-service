@@ -7,9 +7,13 @@ export type JwtPayload = {
   sub: string;
   email?: string;
   roleId?: string;
-  hospitalId: string;
+  hospitalId?: string;
   isSystemAdmin: boolean;
   isAdmin: boolean;
+  isReceptionist: boolean;
+  isDoctor?: boolean;
+  name?:string;
+  permission?: string;
 };
 
 @Injectable()

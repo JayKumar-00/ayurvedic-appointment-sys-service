@@ -76,12 +76,14 @@ export class WebSocketGatewayHandler
 
       socket.data.user = payload;
 
-      const hospitalRoom = this.getHospitalRoom(payload.hospitalId);
-      await socket.join(hospitalRoom);
+      if (payload.hospitalId) {
+        const hospitalRoom = this.getHospitalRoom(payload.hospitalId);
+        await socket.join(hospitalRoom);
 
-      this.logger.log(
-        `Socket connected for user ${payload.sub} in room ${hospitalRoom}`,
-      );
+        this.logger.log(
+          `Socket connected for user ${payload.sub} in room ${hospitalRoom}`,
+        );
+      }
     } catch (error) {
       this.logger.warn(`Socket auth failed: ${(error as Error).message}`);
       socket.emit('error', { message: 'Unauthorized' });

@@ -5,12 +5,14 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { CreateHospitalDto } from './dto/create-hospital.dto';
 import { CreateHospitalAdminDto } from './dto/create-hospital-admin.dto';
+import { CreateAdminUserDto } from './dto/create-admin-user.dto';
 import { AdminUserFilterDto } from './dto/admin-user-filter.dto';
 import { HospitalFilterDto } from './dto/hospital-filter.dto';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
@@ -22,7 +24,7 @@ import { HospitalResponseDto } from './dto/hospital-response.dto';
 import { UpdateHospitalDto } from './dto/update-hospital.dto';
 
 @Injectable()
-export class AdminUserService {
+export class AdminUserService implements OnModuleInit {
   private readonly logger = new Logger(AdminUserService.name);
 
   constructor(
@@ -30,7 +32,35 @@ export class AdminUserService {
     private readonly hospitalModel: Model<HospitalDocument>,
     @InjectModel(AdminUser.name)
     private readonly adminUserModel: Model<AdminUserDocument>,
-  ) {}
+  ) { }
+
+  async onModuleInit() {
+    try {
+      this.logger.log('Checking indexes on users collection...');
+      const indexes = await this.adminUserModel.collection.listIndexes().toArray();
+      this.logger.log(`Existing indexes: ${JSON.stringify(indexes)}`);
+
+      // Find any unique index that has both hospitalId and isAdmin keys
+      const uniqueIndex = indexes.find((idx) => {
+        const keys = Object.keys(idx.key || {});
+        return keys.includes('hospitalId') && keys.includes('isAdmin') && idx.unique;
+      });
+
+      if (uniqueIndex) {
+        this.logger.log(`Found unique index ${uniqueIndex.name}. Dropping it...`);
+        await this.adminUserModel.collection.dropIndex(uniqueIndex.name);
+        this.logger.log('Unique index dropped successfully.');
+
+        // Recreate index as non-unique
+        await this.adminUserModel.collection.createIndex({ hospitalId: 1, isAdmin: 1 });
+        this.logger.log('Non-unique index created successfully.');
+      } else {
+        this.logger.log('No unique index on hospitalId and isAdmin found.');
+      }
+    } catch (err) {
+      this.logger.error('Failed to update unique index hospitalId_1_isAdmin_1', err);
+    }
+  }
 
   async createHospital(createHospitalDto: CreateHospitalDto) {
     try {
@@ -94,6 +124,35 @@ export class AdminUserService {
     return fallback;
   }
 
+  async createAdminUser(createAdminDto: CreateAdminUserDto) {
+    try {
+      const existingUser = await this.adminUserModel.findOne({
+        email: createAdminDto.email.toLowerCase(),
+      });
+
+      if (existingUser) {
+        throw new ConflictException('User with this email already exists');
+      }
+
+      const passwordHash = await bcrypt.hash(createAdminDto.password, 10);
+
+      const user = await this.adminUserModel.create({
+        name: createAdminDto.name,
+        email: createAdminDto.email.toLowerCase(),
+        passwordHash,
+        isAdmin: createAdminDto.isAdmin ?? false,
+        isSystemAdmin: createAdminDto.isSystemAdmin ?? false,
+        isActive: true,
+      });
+
+      const res = this.toAdminUserResponse(user);
+      
+      return res;
+    } catch (error) {
+      throw this.handleServiceError(error, 'Error creating admin user');
+    }
+  }
+
   async createHospitalAdmin(
     hospitalId: string,
     createHospitalAdminDto: CreateHospitalAdminDto,
@@ -102,15 +161,6 @@ export class AdminUserService {
       const hospital = await this.hospitalModel.findById(hospitalId);
       if (!hospital) {
         throw new NotFoundException('Hospital not found');
-      }
-
-      const existingAdmin = await this.adminUserModel.findOne({
-        hospitalId,
-        isAdmin: true,
-      });
-
-      if (existingAdmin) {
-        throw new BadRequestException('This hospital already has an admin');
       }
 
       const existingEmail = await this.adminUserModel.findOne({
@@ -136,7 +186,9 @@ export class AdminUserService {
         isActive: true,
       });
 
-      return this.toAdminUserResponse(admin);
+      const res = this.toAdminUserResponse(admin);
+      
+      return res;
     } catch (error) {
       throw this.handleServiceError(error, 'Error creating admin');
     }
@@ -161,7 +213,7 @@ export class AdminUserService {
       ];
     }
 
-    if (filter.hospitalId) query.hospitalId = filter.hospitalId;
+    
     if (typeof filter.isAdmin === 'boolean') query.isAdmin = filter.isAdmin;
     if (typeof filter.isSystemAdmin === 'boolean') {
       query.isSystemAdmin = filter.isSystemAdmin;
@@ -184,8 +236,13 @@ export class AdminUserService {
       this.adminUserModel.countDocuments(query),
     ]);
 
+    
+
     return {
-      data: users.map((user) => this.toAdminUserResponse(user)),
+      data: users.map((user) => {
+        const res = this.toAdminUserResponse(user);
+        return res;
+      }),
       meta: {
         page,
         limit,
@@ -201,7 +258,8 @@ export class AdminUserService {
       throw new NotFoundException('Admin user not found');
     }
 
-    return this.toAdminUserResponse(user);
+    const res = this.toAdminUserResponse(user);
+    return res;
   }
 
   async findAllHospitals(filter: HospitalFilterDto) {
@@ -260,7 +318,7 @@ export class AdminUserService {
     return this.toHospitalResponse(hospital);
   }
 
-  async changeHospitalStauts(id: string, isActive: boolean) {
+  async changeHospitalStatus(id: string, isActive: boolean) {
     try {
       const hospitalId = await this.hospitalModel.findById(id).exec();
 
@@ -337,8 +395,21 @@ export class AdminUserService {
       user.isActive = updateAdminUserDto.isActive;
     }
 
+    if (typeof updateAdminUserDto.isAdmin === 'boolean') {
+      user.isAdmin = updateAdminUserDto.isAdmin;
+    }
+
+    if (typeof updateAdminUserDto.isSystemAdmin === 'boolean') {
+      user.isSystemAdmin = updateAdminUserDto.isSystemAdmin;
+    }
+
+   
+
     await user.save();
-    return this.toAdminUserResponse(user);
+
+    const res = this.toAdminUserResponse(user);
+    
+    return res;
   }
 
   async removeAdminUser(id: string) {
@@ -386,10 +457,10 @@ export class AdminUserService {
       id: user.id,
       name: user.name,
       email: user.email,
-      hospitalId: user.hospitalId ?? '',
       isAdmin: user.isAdmin,
       isSystemAdmin: user.isSystemAdmin,
       isActive: user.isActive,
+      hospitalId: user.hospitalId,
     };
   }
 

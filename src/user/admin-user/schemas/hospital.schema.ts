@@ -3,7 +3,12 @@ import { HydratedDocument } from 'mongoose';
 
 export type HospitalDocument = HydratedDocument<Hospital>;
 
-@Schema({ timestamps: true, collection: 'hospitals' })
+@Schema({
+  timestamps: true,
+  collection: 'hospitals',
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true },
+})
 export class Hospital {
   @Prop({ required: true, trim: true, unique: true })
   name!: string;

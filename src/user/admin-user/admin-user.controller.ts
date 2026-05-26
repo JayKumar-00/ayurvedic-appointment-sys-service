@@ -26,6 +26,7 @@ import { AdminUserService } from './admin-user.service';
 import { SystemAdminGuard } from './guards/system-admin.guard';
 import { CreateHospitalDto } from './dto/create-hospital.dto';
 import { CreateHospitalAdminDto } from './dto/create-hospital-admin.dto';
+import { CreateAdminUserDto } from './dto/create-admin-user.dto';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
 import { ChangeAdminPasswordDto } from './dto/change-admin-password.dto';
 import { AdminUserResponseDto } from './dto/admin-user-response.dto';
@@ -37,14 +38,14 @@ import { HospitalListResponseDto } from './dto/hospital-list-response.dto';
 import { HospitalResponseDto } from './dto/hospital-response.dto';
 import { UpdateHospitalDto } from './dto/update-hospital.dto';
 
-@ApiTags('Admin-User <- System Admin')
+@ApiTags('Admin-User Management')
 @ApiBearerAuth()
-@Controller('system-admin')
+@Controller()
 @UseGuards(JwtAuthGuard, SystemAdminGuard)
 export class AdminUserController {
-  constructor(private readonly adminUserService: AdminUserService) {}
+  constructor(private readonly adminUserService: AdminUserService) { }
 
-  @Post('hospitals')
+  @Post('system-admin/hospitals')
   @ApiOperation({ summary: 'Create hospital (SystemAdmin only)' })
   @ApiResponse({
     status: 201,
@@ -58,7 +59,7 @@ export class AdminUserController {
     return this.adminUserService.createHospital(createHospitalDto);
   }
 
-  @Get('hospitals')
+  @Get('system-admin/hospitals')
   @ApiOperation({ summary: 'List hospitals with filters (SystemAdmin only)' })
   @ApiResponse({
     status: 200,
@@ -79,7 +80,7 @@ export class AdminUserController {
     return this.adminUserService.findAllHospitals(filter);
   }
 
-  @Post('hospitals/:id/admin')
+  @Post('system-admin/hospitals/:id/admins')
   @ApiOperation({ summary: 'Create hospital admin (SystemAdmin only)' })
   @ApiResponse({
     status: 201,
@@ -100,7 +101,7 @@ export class AdminUserController {
     );
   }
 
-  @Get('hospitals/:id')
+  @Get('system-admin/hospitals/:id')
   @ApiOperation({ summary: 'Get hospital by id (SystemAdmin only)' })
   @ApiResponse({
     status: 200,
@@ -114,7 +115,7 @@ export class AdminUserController {
     return this.adminUserService.findOneHospital(id);
   }
 
-  @Patch('hospital/:id')
+  @Patch('system-admin/hospitals/:id')
   @ApiOperation({ summary: 'Update hospital details (SystemAdmin only)' })
   @ApiResponse({
     status: 200,
@@ -132,7 +133,7 @@ export class AdminUserController {
     return this.adminUserService.updateHospitalDetail(id, updateHospitalDto);
   }
 
-  @Patch('hospital/:id/status-toggle')
+  @Patch('system-admin/hospitals/:id/status')
   @ApiOperation({ summary: 'Toggle hospital active status (SystemAdmin only)' })
   @ApiResponse({
     status: 200,
@@ -144,12 +145,12 @@ export class AdminUserController {
   @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
   changeHospitalStatus(
     @Param('id') id: string,
-    @Query('isActive') isActive: boolean,
+    @Body('isActive') isActive: boolean,
   ) {
-    return this.adminUserService.changeHospitalStauts(id, isActive);
+    return this.adminUserService.changeHospitalStatus(id, isActive);
   }
 
-  @Get('admin-users')
+  @Get('system-admin/admin-users')
   @ApiOperation({ summary: 'List admin users (SystemAdmin only)' })
   @ApiResponse({
     status: 200,
@@ -159,7 +160,6 @@ export class AdminUserController {
   @ApiForbiddenResponse({ type: ApiErrorResponseDto })
   @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
   @ApiQuery({ name: 'search', required: false })
-  @ApiQuery({ name: 'hospitalId', required: false })
   @ApiQuery({ name: 'isAdmin', required: false, type: Boolean })
   @ApiQuery({ name: 'isSystemAdmin', required: false, type: Boolean })
   @ApiQuery({ name: 'isActive', required: false, type: Boolean })
@@ -171,7 +171,19 @@ export class AdminUserController {
     return this.adminUserService.findAllAdminUsersWithFilters(filter);
   }
 
-  @Get('admin-users/:id')
+  @Get('user/list')
+  @ApiOperation({ summary: 'List all users (Legacy path)' })
+  findAllUsersLegacy(@Query() filter: AdminUserFilterDto) {
+    return this.adminUserService.findAllAdminUsersWithFilters(filter);
+  }
+
+  @Post('admin-user')
+  @ApiOperation({ summary: 'Create admin user' })
+  createAdminUser(@Body() createAdminUserDto: CreateAdminUserDto) {
+    return this.adminUserService.createAdminUser(createAdminUserDto);
+  }
+
+  @Get('admin-user/:id')
   @ApiOperation({ summary: 'Get admin user by id (SystemAdmin only)' })
   @ApiResponse({
     status: 200,
@@ -185,7 +197,7 @@ export class AdminUserController {
     return this.adminUserService.findOneAdminUser(id);
   }
 
-  @Patch('admin-users/:id')
+  @Patch('admin-user/:id')
   @ApiOperation({
     summary: 'Update admin user details (without login credentials)',
   })
@@ -205,7 +217,7 @@ export class AdminUserController {
     return this.adminUserService.updateAdminUser(id, updateAdminUserDto);
   }
 
-  @Patch('admin-users/:id/password')
+  @Patch('admin-user/:id/password')
   @ApiOperation({ summary: 'Change admin user password (SystemAdmin only)' })
   @ApiResponse({
     status: 200,
@@ -225,7 +237,13 @@ export class AdminUserController {
     );
   }
 
-  @Delete('admin-users/:id')
+  @Patch('admin-user/:id/status')
+  @ApiOperation({ summary: 'Toggle admin status' })
+  toggleAdminStatus(@Param('id') id: string, @Body('isActive') isActive: boolean) {
+    return this.adminUserService.updateAdminUser(id, { isActive });
+  }
+
+  @Delete('admin-user/:id')
   @ApiOperation({ summary: 'Delete admin user (SystemAdmin only)' })
   @ApiResponse({
     status: 200,
@@ -238,7 +256,7 @@ export class AdminUserController {
     return this.adminUserService.removeAdminUser(id);
   }
 
-  @Delete('admin-user/hospital/:id')
+  @Delete('system-admin/hospitals/:id')
   @ApiOperation({ summary: 'Delete hospital (SystemAdmin only)' })
   @ApiResponse({
     status: 200,

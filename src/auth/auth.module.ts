@@ -10,6 +10,9 @@ import { RefreshToken, RefreshTokenSchema } from './schemas/refresh-token.schema
 import { ConfigModule } from '../config/config.module';
 import { AdminUser, AdminUserSchema } from '../user/admin-user/schemas/admin-user.schema';
 import { Staff, StaffSchema } from '../user/entity/user.entity';
+import { Reception, ReceptionSchema } from '../reception/Schemas/reception.schema';
+import { Doctor, DoctorSchema } from '../Doctors/Schemas/doctor.schema';
+import { Assignment, AssignmentSchema } from '../assignments/schemas/assignments.schema';
 
 @Module({
   imports: [
@@ -20,10 +23,13 @@ import { Staff, StaffSchema } from '../user/entity/user.entity';
       { name: AdminUser.name, schema: AdminUserSchema },
       { name: Staff.name, schema: StaffSchema },
       { name: RefreshToken.name, schema: RefreshTokenSchema },
+      { name: Reception.name, schema: ReceptionSchema },
+      { name: Doctor.name, schema: DoctorSchema },
+      { name: Assignment.name, schema: AssignmentSchema },
     ]),
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, JwtAuthGuard],
   exports: [AuthService, JwtAuthGuard],
 })
-export class AuthModule {}
+export class AuthModule { }

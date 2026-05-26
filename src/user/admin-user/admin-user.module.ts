@@ -19,4 +19,4 @@ import { SystemAdminGuard } from './guards/system-admin.guard';
   providers: [AdminUserService, SystemAdminGuard],
   exports: [AdminUserService],
 })
-export class AdminUserModule {}
+export class AdminUserModule { }
