@@ -58,6 +58,9 @@ export class PreMedicalTest {
     @Prop({required:true})
     status:boolean
 
+    @Prop({ type: String, trim: true, index: true })
+    hospitalId?: string;
+
 
 
 }

@@ -33,6 +33,9 @@ export class PatientQueue {
         default: 'waiting'
     })
     status: string;
+
+    @Prop({ type: String, trim: true, index: true })
+    hospitalId?: string;
 }
 
 export const PatientQueueSchema = SchemaFactory.createForClass(PatientQueue);

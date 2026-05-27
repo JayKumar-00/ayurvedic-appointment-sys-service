@@ -40,6 +40,9 @@ export class MedicineDispensing {
     @Prop({ default: false })
     status: boolean
 
+    @Prop({ type: String, trim: true, index: true })
+    hospitalId?: string;
+
 }
 
 export const MedicineDispensingsSchema=SchemaFactory.createForClass(MedicineDispensing)

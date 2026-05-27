@@ -19,9 +19,21 @@ export class InventoryService{
     async createInventory(createInventoryDto:CreateInventoryDto,user?:JwtPayload){
         try {
             this.logger.log(`cretaing inventory with data:${JSON.stringify(createInventoryDto)}`);
-            const existingInventory=await this.inventoryModel.findOne({
-                name:createInventoryDto.name
-            })
+            
+            let hospitalId = createInventoryDto.hospitalId;
+            if (user && !user.isSystemAdmin) {
+                if (!user.hospitalId) {
+                    throw new BadRequestException('Your account is not associated with any hospital. Please contact a system administrator.');
+                }
+                hospitalId = user.hospitalId;
+            }
+
+            const nameQuery: Record<string, any> = { name: createInventoryDto.name };
+            if (hospitalId) {
+                nameQuery.hospitalId = hospitalId;
+            }
+
+            const existingInventory=await this.inventoryModel.findOne(nameQuery);
             if(existingInventory){
                 throw new BadRequestException("Inventory with this name already exists")
             }
@@ -33,7 +45,8 @@ export class InventoryService{
                 manufacturer:createInventoryDto.manufacturer,
                 price:createInventoryDto.price,
                 date:createInventoryDto.date,
-                assignedtoDisease:createInventoryDto.assignedtoDisease
+                assignedtoDisease:createInventoryDto.assignedtoDisease,
+                hospitalId
             })
 
             return this.toInventoryResponse(inventory)
@@ -47,6 +60,12 @@ export class InventoryService{
         const skip=(page-1)*limit
 
         const query:Record<string,any>={}
+
+        if (user && !user.isSystemAdmin) {
+            query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+        } else if (filter.hospitalId) {
+            query.hospitalId = filter.hospitalId;
+        }
 
         if(filter.search){
             query.$or=[
@@ -80,16 +99,24 @@ export class InventoryService{
         }
 
     }
-    async findOneInventory(id:string){
-        const inventory=await this.inventoryModel.findById(id).exec()
+    async findOneInventory(id:string,user?:JwtPayload){
+        const query:Record<string,any>={_id:id}
+        if (user && !user.isSystemAdmin) {
+            query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+        }
+        const inventory=await this.inventoryModel.findOne(query).exec()
         if(!inventory){
             throw new NotFoundException(`Inventory with this id:${id} not found`)
         }
         return this.toInventoryResponse(inventory)
     }
-    async updateInventoryDetail(id:string,updateInventoryDto:UpdateInventoryDto){
+    async updateInventoryDetail(id:string,updateInventoryDto:UpdateInventoryDto,user?:JwtPayload){
         try{
-            const inventory=await this.inventoryModel.findById(id).exec()
+            const query:Record<string,any>={_id:id}
+            if (user && !user.isSystemAdmin) {
+                query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+            }
+            const inventory=await this.inventoryModel.findOne(query).exec()
             if(!inventory){
                 throw new NotFoundException(`Inventory with this id:${id} not found`)
             }
@@ -111,13 +138,17 @@ export class InventoryService{
             throw this.handleServiceError(error,'Error updating inventory')
         }
     }
-    async removeInventory(id:string){
+    async removeInventory(id:string,user?:JwtPayload){
         try{
-            const inventory= await this.inventoryModel.findById(id).exec()
+            const query:Record<string,any>={_id:id}
+            if (user && !user.isSystemAdmin) {
+                query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+            }
+            const inventory= await this.inventoryModel.findOne(query).exec()
             if(!inventory){
                 throw new NotFoundException(`Inventory with this id:${id} not found`)
             }
-            await this.inventoryModel.findByIdAndDelete(id).exec()
+            await this.inventoryModel.deleteOne(query).exec()
 
             return {
                 success:true,
@@ -137,7 +168,8 @@ export class InventoryService{
             manufacturer:inventory.manufacturer,
             price:inventory.price,
             date:inventory.date,
-            assignedtoDisease:inventory.assignedtoDisease
+            assignedtoDisease:inventory.assignedtoDisease,
+            hospitalId:inventory.hospitalId
         }
     }
     private safeSortField(

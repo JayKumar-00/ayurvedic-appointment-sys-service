@@ -83,8 +83,8 @@ export class InventoryController{
     @ApiInternalServerErrorResponse({type:ApiErrorResponseDto})
     @ApiNotFoundResponse({type:ApiErrorResponseDto})
 
-    findOneInventory(@Param('id') id:string){
-        return this.inventoryService.findOneInventory(id)
+    findOneInventory(@Req() req: { user: JwtPayload }, @Param('id') id:string){
+        return this.inventoryService.findOneInventory(id, req.user)
     }
 
     @Patch(':id')
@@ -99,8 +99,8 @@ export class InventoryController{
     @ApiForbiddenResponse({type:ApiErrorResponseDto})
     @ApiInternalServerErrorResponse({type:ApiErrorResponseDto})
 
-    updateInventory(@Param('id') id:string,@Body() updateInventoryDto:UpdateInventoryDto){
-        return this.inventoryService.updateInventoryDetail(id,updateInventoryDto)
+    updateInventory(@Req() req: { user: JwtPayload }, @Param('id') id:string,@Body() updateInventoryDto:UpdateInventoryDto){
+        return this.inventoryService.updateInventoryDetail(id,updateInventoryDto, req.user)
     }
 
    @Delete(':id')
@@ -114,8 +114,8 @@ export class InventoryController{
    @ApiInternalServerErrorResponse({type:ApiErrorResponseDto})
    @ApiNotFoundResponse({type:ApiErrorResponseDto})
 
-   deleteInventory(@Param('id') id:string){
-    return this.inventoryService.removeInventory(id)
+   deleteInventory(@Req() req: { user: JwtPayload }, @Param('id') id:string){
+    return this.inventoryService.removeInventory(id, req.user)
    }
 
 

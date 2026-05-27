@@ -1,5 +1,5 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { IsBoolean, IsNotEmpty, IsNumber, IsString } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { IsBoolean, IsNotEmpty, IsNumber, IsString, IsOptional } from "class-validator";
 
 export class CreateMedicineDispensingDto {
     @ApiProperty({
@@ -73,4 +73,12 @@ export class CreateMedicineDispensingDto {
     @IsBoolean()
     @IsNotEmpty()
     status: boolean;
+
+    @ApiPropertyOptional({
+        description: "Hospital ID",
+        example: "60c72b2f9b1e8a001c8e4e1a"
+    })
+    @IsString()
+    @IsOptional()
+    hospitalId?: string;
 }

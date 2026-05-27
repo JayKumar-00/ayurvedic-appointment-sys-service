@@ -62,4 +62,9 @@ export class MedicineDispensingResponseDto {
         example:'2024-01-01T00:00:00.000Z'
     })
     updatedAt:Date
+
+    @ApiProperty({
+        example:'60c72b2f9b1e8a001c8e4e1a'
+    })
+    hospitalId?:string;
 }

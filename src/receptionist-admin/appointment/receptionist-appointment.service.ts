@@ -6,6 +6,7 @@ import { CreateReceptionistAppointmentDto } from "./dto/create-receptionist-appo
 import { ReceptionistAppointment, ReceptionistAppointmentDocument } from "./Schemas/receptionist-appointment";
 import { PatientQueue, PatientQueueDocument } from "../patient-queue/Schema/patient-queue.schema";
 import { PreMedicalTest, PreMedicalTestDocument } from "../pre-medical-test/Schemas/pre-medical-test";
+import { JwtPayload } from "src/auth/strategies/jwt.strategy";
 
 @Injectable()
 export class ReceptionistAppointmentService {
@@ -19,22 +20,32 @@ export class ReceptionistAppointmentService {
     private readonly preMedicalTestModel: Model<PreMedicalTestDocument>,
   ) { }
 
-  async createAppointment(createAppointmentDto: CreateReceptionistAppointmentDto) {
+  async createAppointment(createAppointmentDto: CreateReceptionistAppointmentDto, user?: JwtPayload) {
     try {
       this.logger.log(`Creating appointment with data: ${JSON.stringify(createAppointmentDto)}`)
       
-    
-      
-      const existingAppointment = await this.receptionistAppointmentModel.findOne({
-        patientName: createAppointmentDto.patientName
-      })
+      let hospitalId = createAppointmentDto.hospitalId;
+      if (user && !user.isSystemAdmin) {
+        if (!user.hospitalId) {
+          throw new BadRequestException('Your account is not assigned to any clinic/hospital.');
+        }
+        hospitalId = user.hospitalId;
+      }
+
+      const nameQuery: Record<string, any> = { patientName: createAppointmentDto.patientName };
+      if (hospitalId) {
+        nameQuery.hospitalId = hospitalId;
+      }
+      const existingAppointment = await this.receptionistAppointmentModel.findOne(nameQuery);
       if (existingAppointment) {
         throw new ConflictException('Appointment with this name already exists')
       }
 
-      const existingAppointmentByPhone = await this.receptionistAppointmentModel.findOne({
-        phone: createAppointmentDto.phone
-      })
+      const phoneQuery: Record<string, any> = { phone: createAppointmentDto.phone };
+      if (hospitalId) {
+        phoneQuery.hospitalId = hospitalId;
+      }
+      const existingAppointmentByPhone = await this.receptionistAppointmentModel.findOne(phoneQuery);
       if (existingAppointmentByPhone) {
         throw new ConflictException('Appointment with this phone already exists')
       }
@@ -49,17 +60,18 @@ export class ReceptionistAppointmentService {
         phone: createAppointmentDto.phone,
         isActive: createAppointmentDto.isActive,
         visitReason: createAppointmentDto.visitReason,
-        checkupType: createAppointmentDto.checkupType
+        checkupType: createAppointmentDto.checkupType,
+        hospitalId
       });
 
       try {
         await this.patientQueueModel.create({
           appointmentId: appointment._id,
-          status: 'waiting'
+          status: 'waiting',
+          hospitalId
         });
       } catch (queueErr) {
         this.logger.error(`Failed to create patient queue entry automatically: ${queueErr.message}`);
-        
       }
 
       return this.toAppointmentResponse(appointment);
@@ -68,33 +80,50 @@ export class ReceptionistAppointmentService {
     }
   }
 
-  async findAllAppointments() {
-    const appointments = await this.receptionistAppointmentModel.find().exec();
+  async findAllAppointments(user?: JwtPayload) {
+    const query: Record<string, any> = {};
+    if (user && !user.isSystemAdmin) {
+      query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+    }
+    const appointments = await this.receptionistAppointmentModel.find(query).exec();
     if (!appointments || appointments.length === 0) {
       throw new NotFoundException(`No appointments found`);
     }
     return appointments.map(appointment => this.toAppointmentResponse(appointment));
   }
 
-  async findOnePatient(id: string) {
-    const appointment = await this.receptionistAppointmentModel.findById(id).exec()
+  async findOnePatient(id: string, user?: JwtPayload) {
+    const query: Record<string, any> = { _id: id };
+    if (user && !user.isSystemAdmin) {
+      query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+    }
+    const appointment = await this.receptionistAppointmentModel.findOne(query).exec()
     if (!appointment) {
       throw new NotFoundException(`Appointment with id ${id} not found`);
     }
-    const preMedicalTest = await this.preMedicalTestModel.findOne({ phone: appointment.phone }).exec()
+    const preMedQuery: Record<string, any> = { phone: appointment.phone };
+    if (appointment.hospitalId) {
+      preMedQuery.hospitalId = appointment.hospitalId;
+    }
+    const preMedicalTest = await this.preMedicalTestModel.findOne(preMedQuery).exec()
     return {
       ...this.toAppointmentResponse(appointment),
       preMedicalTest: preMedicalTest || null
     }
   }
 
-  async changeAppointmentStatus(id: string, isActive: boolean) {
+  async changeAppointmentStatus(id: string, isActive: boolean, user?: JwtPayload) {
     try {
-      const appointment = await this.receptionistAppointmentModel.findById(id).exec()
+      const query: Record<string, any> = { _id: id };
+      if (user && !user.isSystemAdmin) {
+        query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+      }
+      const appointment = await this.receptionistAppointmentModel.findOne(query).exec()
       if (!appointment) {
         throw new NotFoundException(`Appointment with id ${id} not found`);
       }
-      await this.receptionistAppointmentModel.findByIdAndUpdate(id, { isActive }, { new: true }).exec()
+      appointment.isActive = isActive;
+      await appointment.save();
 
       return {
         message: `Appointment ${isActive ? 'activated' : 'deactivated'} successfully`,
@@ -104,9 +133,13 @@ export class ReceptionistAppointmentService {
     }
   }
 
-  async updatePatientDetail(id: string, updateAppointmentsDto: Partial<CreateReceptionistAppointmentDto>) {
+  async updatePatientDetail(id: string, updateAppointmentsDto: Partial<CreateReceptionistAppointmentDto>, user?: JwtPayload) {
     try {
-      const appointment = await this.receptionistAppointmentModel.findById(id).exec()
+      const query: Record<string, any> = { _id: id };
+      if (user && !user.isSystemAdmin) {
+        query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+      }
+      const appointment = await this.receptionistAppointmentModel.findOne(query).exec()
       if (!appointment) {
         throw new NotFoundException(`Appointment with id ${id} not found`);
       }
@@ -130,8 +163,12 @@ export class ReceptionistAppointmentService {
       // Perform cascading update in PreMedicalTest if phone or patientName was modified
       if (updateAppointmentsDto.phone !== undefined || updateAppointmentsDto.patientName !== undefined) {
         try {
+          const preMedQuery: Record<string, any> = { phone: oldPhone };
+          if (appointment.hospitalId) {
+            preMedQuery.hospitalId = appointment.hospitalId;
+          }
           await this.preMedicalTestModel.updateMany(
-            { phone: oldPhone },
+            preMedQuery,
             {
               patientName: appointment.patientName,
               phone: appointment.phone
@@ -148,13 +185,24 @@ export class ReceptionistAppointmentService {
     }
   }
 
-  async removeAppointments(id: string) {
+  async removeAppointments(id: string, user?: JwtPayload) {
     try {
-      const appointment = await this.receptionistAppointmentModel.findById(id).exec()
+      const query: Record<string, any> = { _id: id };
+      if (user && !user.isSystemAdmin) {
+        query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+      }
+      const appointment = await this.receptionistAppointmentModel.findOne(query).exec()
       if (!appointment) {
         throw new NotFoundException('Appointment not found')
       }
-      await this.receptionistAppointmentModel.findByIdAndDelete(id).exec()
+      await this.receptionistAppointmentModel.deleteOne(query).exec()
+
+      // Also clean up patient queue for this appointment!
+      try {
+        await this.patientQueueModel.deleteOne({ appointmentId: appointment._id }).exec();
+      } catch (queueErr) {
+        this.logger.error(`Failed to delete queue entry during appointment deletion: ${queueErr.message}`);
+      }
 
       return {
         message: 'Appointment deleted successfully'
@@ -163,14 +211,17 @@ export class ReceptionistAppointmentService {
       throw this.handleServiceError(err, 'Error deleting appointment')
     }
   }
-  async findDoctorAppointments(doctorName:string){
+  async findDoctorAppointments(doctorName:string, user?: JwtPayload){
     try{
       // patient queue se wahi entries find karenge jo read for doctor status me h 
+      const query: Record<string, any> = { status: { $in: ['sent-to-doctor', 'with-doctor'] } };
+      if (user && !user.isSystemAdmin) {
+        query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+      }
 
-      const queueEntries=await this.patientQueueModel.find({status:{$in:['sent-to-doctor','with-doctor']}}).populate('appointmentId').exec()
+      const queueEntries=await this.patientQueueModel.find(query).populate('appointmentId').exec()
 
       // sirf wahi appointments filter karenge jinka assigned doctorName matches 
-
       const filteredEntries=queueEntries.filter((entry)=>{
         const appointment=entry.appointmentId as any
         return appointment && appointment.doctorName===doctorName
@@ -181,8 +232,11 @@ export class ReceptionistAppointmentService {
         filteredEntries.map(async(entry)=>{
           const appointment=entry.appointmentId as any;
           //premedical data check phone number se verify karenge
-
-          const premedicalTest=await this.preMedicalTestModel.findOne({phone:appointment.phone}).exec()
+          const preMedQuery: Record<string, any> = { phone: appointment.phone };
+          if (appointment.hospitalId) {
+            preMedQuery.hospitalId = appointment.hospitalId;
+          }
+          const premedicalTest=await this.preMedicalTestModel.findOne(preMedQuery).exec()
 
           return{
             _id: appointment._id.toString(),
@@ -225,6 +279,7 @@ export class ReceptionistAppointmentService {
       isActive: appointment.isActive,
       visitReason: appointment.visitReason,
       checkupType: appointment.checkupType,
+      hospitalId: appointment.hospitalId
     }
   }
 

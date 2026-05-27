@@ -1,8 +1,9 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, BadRequestException } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { PatientRecord, PatientRecordDocument } from "./Schemas/patient-record";
 import { CreatePatientRecordDto } from "./dto/create-patient-record.dto";
+import { JwtPayload } from "src/auth/strategies/jwt.strategy";
 import { DiagnosisReport, DiagnosisReportDocument } from "../diagnosis-reports/Schemas/report";
 
 @Injectable()
@@ -16,13 +17,26 @@ export class PatientRecordsService {
         private readonly diagnosisReportModel: Model<DiagnosisReportDocument>
     ) {}
 
-    async createOrUpdate(dto: CreatePatientRecordDto) {
+    async createOrUpdate(dto: CreatePatientRecordDto, user?: JwtPayload) {
         try {
             this.logger.log(`Recording patient record: ${JSON.stringify(dto)}`);
             let record: PatientRecordDocument | null = null;
 
+            let hospitalId = dto.hospitalId;
+            if (user && !user.isSystemAdmin) {
+                if (!user.hospitalId) {
+                    throw new BadRequestException('Your account is not assigned to any clinic/hospital.');
+                }
+                hospitalId = user.hospitalId;
+            }
+
+            const query: Record<string, any> = {};
             if (dto.appointmentId) {
-                record = await this.patientRecordModel.findOne({ appointmentId: dto.appointmentId }).exec();
+                query.appointmentId = dto.appointmentId;
+                if (hospitalId) {
+                    query.hospitalId = hospitalId;
+                }
+                record = await this.patientRecordModel.findOne(query).exec();
             }
 
             if (record) {
@@ -38,7 +52,17 @@ export class PatientRecordsService {
                 return record;
             } else {
                 this.logger.log(`Creating new patient record`);
-                const newRecord = await this.patientRecordModel.create(dto);
+                const newRecord = await this.patientRecordModel.create({
+                    patientName: dto.patientName,
+                    phone: dto.phone,
+                    age: dto.age,
+                    gender: dto.gender,
+                    condition: dto.condition,
+                    observation: dto.observation,
+                    date: dto.date,
+                    appointmentId: dto.appointmentId,
+                    hospitalId
+                });
                 return newRecord;
             }
         } catch (error: any) {
@@ -47,10 +71,14 @@ export class PatientRecordsService {
         }
     }
 
-    async findAll() {
+    async findAll(user?: JwtPayload) {
         try {
             this.logger.log(`Fetching all patient records`);
-            const records = await this.patientRecordModel.find().sort({ createdAt: -1 }).exec();
+            const query: Record<string, any> = {};
+            if (user && !user.isSystemAdmin) {
+                query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+            }
+            const records = await this.patientRecordModel.find(query).sort({ createdAt: -1 }).exec();
             
             // Resolve conditions dynamically if they are 'N/A'
             const resolvedRecords = await Promise.all(records.map(async (record) => {

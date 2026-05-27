@@ -35,4 +35,7 @@ export class ReceptionResponseDto{
 
     @ApiProperty({example:'General checkup'})
     visitReason:string
+
+    @ApiProperty({example:'60c72b2f9b1e8a001c8e4e1a'})
+    hospitalId?:string;
 }

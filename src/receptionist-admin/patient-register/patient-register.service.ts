@@ -5,6 +5,7 @@ import { CreatePatientRegisterDto } from "./dto/create-patient-register.dto";
 import { UpdatePatientRegisterDto } from "./dto/update-patient-register.dto";
 import { PatientRegister, PatientRegisterDocument } from "./Schema/patient-register";
 import { PatientRegisterResponseDto } from "./dto/patient-register-response.dto";
+import { JwtPayload } from "src/auth/strategies/jwt.strategy";
 
 
 @Injectable()
@@ -16,20 +17,34 @@ export class PatientRegisterService {
     ){}
 
 
-    async createPatientRegister(createPatientRegister:CreatePatientRegisterDto){
+    async createPatientRegister(createPatientRegister:CreatePatientRegisterDto, user?: JwtPayload){
         try{
-            const existingPatientRegister=await this.patientRegisterModel.findOne({
-                fullName:createPatientRegister.fullName,
-            })
+            let hospitalId = createPatientRegister.hospitalId;
+            if (user && !user.isSystemAdmin) {
+                if (!user.hospitalId) {
+                    throw new BadRequestException('Your account is not assigned to any clinic/hospital.');
+                }
+                hospitalId = user.hospitalId;
+            }
+
+            const nameQuery: Record<string, any> = { fullName: createPatientRegister.fullName };
+            if (hospitalId) {
+                nameQuery.hospitalId = hospitalId;
+            }
+            const existingPatientRegister=await this.patientRegisterModel.findOne(nameQuery);
             if(existingPatientRegister){
                 throw new ConflictException('Patient Register already exists')
             }
-            const existingPatientRegisterByPhone=await this.patientRegisterModel.findOne({
-                phone:createPatientRegister.phone,
-            })
+
+            const phoneQuery: Record<string, any> = { phone: createPatientRegister.phone };
+            if (hospitalId) {
+                phoneQuery.hospitalId = hospitalId;
+            }
+            const existingPatientRegisterByPhone=await this.patientRegisterModel.findOne(phoneQuery);
             if(existingPatientRegisterByPhone){
                 throw new ConflictException('Patient Register already exists')
             }
+
             const patientRegister=await this.patientRegisterModel.create({
                 fullName:createPatientRegister.fullName,
                 phone:createPatientRegister.phone,
@@ -38,6 +53,7 @@ export class PatientRegisterService {
                 gender:createPatientRegister.gender,
                 bloodGroup:createPatientRegister.bloodGroup,
                 status:createPatientRegister.status,
+                hospitalId
             })
             return this.toPatientRegisterResponse(patientRegister)
         }
@@ -46,29 +62,42 @@ export class PatientRegisterService {
         }
     }
 
-    async findAllPatientRegister() {
-    const patientRegister = await this.patientRegisterModel.find().exec();
+    async findAllPatientRegister(user?: JwtPayload) {
+    const query: Record<string, any> = {};
+    if (user && !user.isSystemAdmin) {
+        query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+    }
+    const patientRegister = await this.patientRegisterModel.find(query).exec();
     if (!patientRegister || patientRegister.length === 0) {
       throw new NotFoundException(`No patient register found`);
     }
     return patientRegister.map(patientRegister => this.toPatientRegisterResponse(patientRegister));
   }
 
-  async findOnePatientRegister(id: string) {
-    const patientRegister = await this.patientRegisterModel.findById(id).exec()
+  async findOnePatientRegister(id: string, user?: JwtPayload) {
+    const query: Record<string, any> = { _id: id };
+    if (user && !user.isSystemAdmin) {
+        query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+    }
+    const patientRegister = await this.patientRegisterModel.findOne(query).exec()
     if (!patientRegister) {
       throw new NotFoundException(`Patient register with id ${id} not found`);
     }
     return this.toPatientRegisterResponse(patientRegister)
   }
 
-  async changePatientRegisterStatus(id: string, status: boolean) {
+  async changePatientRegisterStatus(id: string, status: boolean, user?: JwtPayload) {
     try {
-      const patientRegister = await this.patientRegisterModel.findById(id).exec()
+      const query: Record<string, any> = { _id: id };
+      if (user && !user.isSystemAdmin) {
+        query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+      }
+      const patientRegister = await this.patientRegisterModel.findOne(query).exec()
       if (!patientRegister) {
         throw new NotFoundException(`Patient register with id ${id} not found`);
       }
-      await this.patientRegisterModel.findByIdAndUpdate(id, { status: status }, { new: true }).exec()
+      patientRegister.status = status;
+      await patientRegister.save();
 
       return {
         message: `Patient register ${status ? 'activated' : 'deactivated'} successfully`,
@@ -78,9 +107,13 @@ export class PatientRegisterService {
     }
   }
 
-  async updatePatientRegister(id: string, updatePatientRegisterDto: UpdatePatientRegisterDto) {
+  async updatePatientRegister(id: string, updatePatientRegisterDto: UpdatePatientRegisterDto, user?: JwtPayload) {
     try {
-      const patientRegister = await this.patientRegisterModel.findById(id).exec()
+      const query: Record<string, any> = { _id: id };
+      if (user && !user.isSystemAdmin) {
+        query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+      }
+      const patientRegister = await this.patientRegisterModel.findOne(query).exec()
       if (!patientRegister) {
         throw new NotFoundException(`Patient register with id ${id} not found`);
       }
@@ -105,13 +138,17 @@ export class PatientRegisterService {
     }
   }
 
-  async removePatientRegister(id: string) {
+  async removePatientRegister(id: string, user?: JwtPayload) {
     try {
-      const patientRegister = await this.patientRegisterModel.findById(id).exec()
+      const query: Record<string, any> = { _id: id };
+      if (user && !user.isSystemAdmin) {
+        query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+      }
+      const patientRegister = await this.patientRegisterModel.findOne(query).exec()
       if (!patientRegister) {
         throw new NotFoundException('Patient register not found')
       }
-      await this.patientRegisterModel.findByIdAndDelete(id).exec()
+      await this.patientRegisterModel.deleteOne(query).exec()
 
       return {
         message: 'Patient register deleted successfully'
@@ -130,7 +167,8 @@ export class PatientRegisterService {
       age: patientRegister.age,
       gender: patientRegister.gender,
       bloodGroup: patientRegister.bloodGroup,
-      status: patientRegister.status
+      status: patientRegister.status,
+      hospitalId: patientRegister.hospitalId
     }
   }
 

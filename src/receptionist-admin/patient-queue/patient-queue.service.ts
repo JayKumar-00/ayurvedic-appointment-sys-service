@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, Logger } from "@nes
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { PatientQueue, PatientQueueDocument } from "./Schema/patient-queue.schema";
+import { JwtPayload } from "src/auth/strategies/jwt.strategy";
 
 @Injectable()
 export class PatientQueueService {
@@ -31,14 +32,19 @@ export class PatientQueueService {
       status: entry.status,
       createdAt: entry.createdAt,
       updatedAt: entry.updatedAt,
+      hospitalId: entry.hospitalId,
     };
   }
 
-  async findAll() {
+  async findAll(user?: JwtPayload) {
     try {
+      const query: Record<string, any> = {};
+      if (user && !user.isSystemAdmin) {
+        query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+      }
       // Find all queue entries, sort them so newer ones or those not completed are on top
       const entries = await this.patientQueueModel
-        .find()
+        .find(query)
         .sort({ createdAt: -1 })
         .populate('appointmentId')
         .exec();
@@ -50,15 +56,20 @@ export class PatientQueueService {
     }
   }
 
-  async updateStatus(id: string, status: string) {
+  async updateStatus(id: string, status: string, user?: JwtPayload) {
     try {
       const allowedStatuses = ['waiting', 'ready-for-doctor', 'sent-to-doctor', 'with-doctor', 'completed'];
       if (!allowedStatuses.includes(status)) {
         throw new BadRequestException(`Invalid status: ${status}. Must be one of ${allowedStatuses.join(', ')}`);
       }
 
+      const query: Record<string, any> = { _id: id };
+      if (user && !user.isSystemAdmin) {
+        query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+      }
+
       const queueEntry = await this.patientQueueModel
-        .findById(id)
+        .findOne(query)
         .populate('appointmentId')
         .exec();
 
@@ -79,10 +90,14 @@ export class PatientQueueService {
     }
   }
 
-  async remove(id: string) {
+  async remove(id: string, user?: JwtPayload) {
     try {
-      const result = await this.patientQueueModel.findByIdAndDelete(id).exec();
-      if (!result) {
+      const query: Record<string, any> = { _id: id };
+      if (user && !user.isSystemAdmin) {
+        query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+      }
+      const result = await this.patientQueueModel.deleteOne(query).exec();
+      if (result.deletedCount === 0) {
         throw new NotFoundException(`Patient Queue record with id ${id} not found`);
       }
       return { message: 'Patient removed from queue successfully' };

@@ -4,6 +4,7 @@ import { Model } from "mongoose";
 import { MedicineDispensingResponseDto } from "./dto/medicine-dispensing-response.dto";
 import { MedicineDispensing, MedicineDispensingDocument } from "./Schema/medicine-despensing";
 import { CreateMedicineDispensingDto } from "./dto/create-medicine-dispensing.dto";
+import { JwtPayload } from "src/auth/strategies/jwt.strategy";
 
 @Injectable()
 export class MedicineDispensingService {
@@ -14,20 +15,34 @@ export class MedicineDispensingService {
     ){}
 
 
-    async createMedicineDispensing(createMedicineDispensing:CreateMedicineDispensingDto){
+    async createMedicineDispensing(createMedicineDispensing:CreateMedicineDispensingDto, user?: JwtPayload){
         try{
-            const existingMedicineDispensing=await this.medicineDispensingModel.findOne({
-                patientName:createMedicineDispensing.patientName,
-            })
+            let hospitalId = createMedicineDispensing.hospitalId;
+            if (user && !user.isSystemAdmin) {
+                if (!user.hospitalId) {
+                    throw new BadRequestException('Your account is not assigned to any clinic/hospital.');
+                }
+                hospitalId = user.hospitalId;
+            }
+
+            const nameQuery: Record<string, any> = { patientName: createMedicineDispensing.patientName };
+            if (hospitalId) {
+                nameQuery.hospitalId = hospitalId;
+            }
+            const existingMedicineDispensing=await this.medicineDispensingModel.findOne(nameQuery);
             if(existingMedicineDispensing){
                 throw new ConflictException('Medicine Dispensing already exists')
             }
-            const existingMedicineDispensingByPhone=await this.medicineDispensingModel.findOne({
-                phone:createMedicineDispensing.phone,
-            })
+
+            const phoneQuery: Record<string, any> = { phone: createMedicineDispensing.phone };
+            if (hospitalId) {
+                phoneQuery.hospitalId = hospitalId;
+            }
+            const existingMedicineDispensingByPhone=await this.medicineDispensingModel.findOne(phoneQuery);
             if(existingMedicineDispensingByPhone){
                 throw new ConflictException('Medicine Dispensing already exists')
             }
+
             const medicineDispensing=await this.medicineDispensingModel.create({
                 patientName:createMedicineDispensing.patientName,
                 phone:createMedicineDispensing.phone,
@@ -38,6 +53,7 @@ export class MedicineDispensingService {
                 duration:createMedicineDispensing.duration,
                 notes:createMedicineDispensing.notes,
                 status:createMedicineDispensing.status,
+                hospitalId
             })
             return this.toMedicineDispensingResponse(medicineDispensing)
         }
@@ -46,29 +62,42 @@ export class MedicineDispensingService {
         }
     }
 
-    async findAllAppointments() {
-    const medicineDispensing = await this.medicineDispensingModel.find().exec();
+    async findAllAppointments(user?: JwtPayload) {
+    const query: Record<string, any> = {};
+    if (user && !user.isSystemAdmin) {
+        query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+    }
+    const medicineDispensing = await this.medicineDispensingModel.find(query).exec();
     if (!medicineDispensing || medicineDispensing.length === 0) {
       throw new NotFoundException(`No medicine dispensing found`);
     }
     return medicineDispensing.map(medicineDispensing => this.toMedicineDispensingResponse(medicineDispensing));
   }
 
-  async findOnePatient(id: string) {
-    const medicineDispensing = await this.medicineDispensingModel.findById(id).exec()
+  async findOnePatient(id: string, user?: JwtPayload) {
+    const query: Record<string, any> = { _id: id };
+    if (user && !user.isSystemAdmin) {
+        query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+    }
+    const medicineDispensing = await this.medicineDispensingModel.findOne(query).exec()
     if (!medicineDispensing) {
       throw new NotFoundException(`Medicine dispensing with id ${id} not found`);
     }
     return this.toMedicineDispensingResponse(medicineDispensing)
   }
 
-  async changeMedicineDispensingStatus(id: string, status: boolean) {
+  async changeMedicineDispensingStatus(id: string, status: boolean, user?: JwtPayload) {
     try {
-      const medicineDispensing = await this.medicineDispensingModel.findById(id).exec()
+      const query: Record<string, any> = { _id: id };
+      if (user && !user.isSystemAdmin) {
+        query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+      }
+      const medicineDispensing = await this.medicineDispensingModel.findOne(query).exec()
       if (!medicineDispensing) {
         throw new NotFoundException(`Medicine dispensing with id ${id} not found`);
       }
-      await this.medicineDispensingModel.findByIdAndUpdate(id, { status: status }, { new: true }).exec()
+      medicineDispensing.status = status;
+      await medicineDispensing.save();
 
       return {
         message: `Medicine dispensing ${status ? 'activated' : 'deactivated'} successfully`,
@@ -78,9 +107,13 @@ export class MedicineDispensingService {
     }
   }
 
-  async updateMedicineDispensing(id: string, updateMedicineDispensingDto: Partial<CreateMedicineDispensingDto>) {
+  async updateMedicineDispensing(id: string, updateMedicineDispensingDto: Partial<CreateMedicineDispensingDto>, user?: JwtPayload) {
     try {
-      const medicineDispensing = await this.medicineDispensingModel.findById(id).exec()
+      const query: Record<string, any> = { _id: id };
+      if (user && !user.isSystemAdmin) {
+        query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+      }
+      const medicineDispensing = await this.medicineDispensingModel.findOne(query).exec()
       if (!medicineDispensing) {
         throw new NotFoundException(`Medicine dispensing with id ${id} not found`);
       }
@@ -106,13 +139,17 @@ export class MedicineDispensingService {
     }
   }
 
-  async removeMedicineDispensing(id: string) {
+  async removeMedicineDispensing(id: string, user?: JwtPayload) {
     try {
-      const medicineDispensing = await this.medicineDispensingModel.findById(id).exec()
+      const query: Record<string, any> = { _id: id };
+      if (user && !user.isSystemAdmin) {
+        query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+      }
+      const medicineDispensing = await this.medicineDispensingModel.findOne(query).exec()
       if (!medicineDispensing) {
         throw new NotFoundException('Medicine dispensing not found')
       }
-      await this.medicineDispensingModel.findByIdAndDelete(id).exec()
+      await this.medicineDispensingModel.deleteOne(query).exec()
 
       return {
         message: 'Medicine dispensing deleted successfully'
@@ -136,6 +173,7 @@ export class MedicineDispensingService {
       status: medicineDispensing.status,
       createdAt: medicineDispensing.createdAt,
       updatedAt: medicineDispensing.updatedAt,
+      hospitalId: medicineDispensing.hospitalId,
     }
   }
 

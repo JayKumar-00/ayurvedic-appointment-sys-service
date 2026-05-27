@@ -7,7 +7,8 @@ import {
   Param, 
   Delete, 
   UseGuards, 
-  Query 
+  Query,
+  Req
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConflictResponse, ApiForbiddenResponse, ApiInternalServerErrorResponse, ApiBadRequestResponse, ApiNotFoundResponse } from '@nestjs/swagger';
 import { ReceptionistAppointmentService } from './receptionist-appointment.service';
@@ -18,6 +19,7 @@ import { ReceptionLevelGuard } from 'src/auth/guards/reception-level.guard';
 import { StaffGuard } from 'src/auth/guards/staff.guard';
 import { ApiErrorResponseDto } from 'src/common/dto/api-error-response.dto';
 import { UpdateReceptionDto } from './dto/update-receptionist-appointment.dto';
+import { JwtPayload } from 'src/auth/strategies/jwt.strategy';
 
 @ApiTags('Receptionist Appointments')
 @ApiBearerAuth()
@@ -34,8 +36,8 @@ export class ReceptionistAppointmentController {
   @ApiConflictResponse({type:ApiErrorResponseDto})
   @ApiForbiddenResponse({type:ApiErrorResponseDto})
   @ApiInternalServerErrorResponse({type:ApiErrorResponseDto})
-  createReceptionistAppointment(@Body() createDto: CreateReceptionistAppointmentDto) {
-    return this.appointmentService.createAppointment(createDto);
+  createReceptionistAppointment(@Req() req: { user: JwtPayload }, @Body() createDto: CreateReceptionistAppointmentDto) {
+    return this.appointmentService.createAppointment(createDto, req.user);
   }
 
   @Get()
@@ -46,8 +48,8 @@ export class ReceptionistAppointmentController {
   @ApiConflictResponse({type:ApiErrorResponseDto})
   @ApiForbiddenResponse({type:ApiErrorResponseDto})
   @ApiInternalServerErrorResponse({type:ApiErrorResponseDto})
-  findAllAppointments() {
-    return this.appointmentService.findAllAppointments();
+  findAllAppointments(@Req() req: { user: JwtPayload }) {
+    return this.appointmentService.findAllAppointments(req.user);
   }
 
   @Get(':id')
@@ -58,8 +60,8 @@ export class ReceptionistAppointmentController {
   @ApiConflictResponse({type:ApiErrorResponseDto})
   @ApiForbiddenResponse({type:ApiErrorResponseDto})
   @ApiInternalServerErrorResponse({type:ApiErrorResponseDto})
-  findOne(@Param('id') id: string) {
-    return this.appointmentService.findOnePatient(id);
+  findOne(@Req() req: { user: JwtPayload }, @Param('id') id: string) {
+    return this.appointmentService.findOnePatient(id, req.user);
   }
 
   @Patch(':id/status')
@@ -71,10 +73,11 @@ export class ReceptionistAppointmentController {
   @ApiForbiddenResponse({type:ApiErrorResponseDto})
   @ApiInternalServerErrorResponse({type:ApiErrorResponseDto})
   updateStatus(
+    @Req() req: { user: JwtPayload },
     @Param('id') id: string, 
     @Body('isActive') isActive: boolean
   ) {
-    return this.appointmentService.changeAppointmentStatus(id, isActive);
+    return this.appointmentService.changeAppointmentStatus(id, isActive, req.user);
   }
 
   @Patch(':id')
@@ -86,10 +89,11 @@ export class ReceptionistAppointmentController {
   @ApiForbiddenResponse({type:ApiErrorResponseDto})
   @ApiInternalServerErrorResponse({type:ApiErrorResponseDto})
   update(
+    @Req() req: { user: JwtPayload },
     @Param('id') id: string, 
     @Body() updateDto: UpdateReceptionDto
   ) {
-    return this.appointmentService.updatePatientDetail(id, updateDto);
+    return this.appointmentService.updatePatientDetail(id, updateDto, req.user);
   }
 
   @Delete(':id')
@@ -100,14 +104,14 @@ export class ReceptionistAppointmentController {
   @ApiConflictResponse({type:ApiErrorResponseDto})
   @ApiForbiddenResponse({type:ApiErrorResponseDto})
   @ApiInternalServerErrorResponse({type:ApiErrorResponseDto})
-  deleteAppointments(@Param('id') id: string) {
-    return this.appointmentService.removeAppointments(id);
+  deleteAppointments(@Req() req: { user: JwtPayload }, @Param('id') id: string) {
+    return this.appointmentService.removeAppointments(id, req.user);
   }
 
   // naya end point doctor ke liye 
   @Get('doctor/appointments')
   @ApiOperation({ summary:'Get doctor appointment by doctor name'})
-  findDoctorAppointments(@Query('doctorName')doctorName:string){
-    return this.appointmentService.findDoctorAppointments(doctorName)
+  findDoctorAppointments(@Req() req: { user: JwtPayload }, @Query('doctorName')doctorName:string){
+    return this.appointmentService.findDoctorAppointments(doctorName, req.user);
   }
 }

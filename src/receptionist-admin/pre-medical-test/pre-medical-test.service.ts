@@ -7,6 +7,7 @@ import { UpdatePreMedicalTestDto } from "./dto/update-premedical-test.dto";
 import { PreMedicalTestResponceDto } from "./dto/pre-medical-test-responce.dto";
 import { PatientQueue, PatientQueueDocument } from "../patient-queue/Schema/patient-queue.schema";
 import { ReceptionistAppointment, ReceptionistAppointmentDocument } from "../appointment/Schemas/receptionist-appointment";
+import { JwtPayload } from "src/auth/strategies/jwt.strategy";
 
 @Injectable()
 export class PreMedicalTestService{
@@ -22,8 +23,16 @@ export class PreMedicalTestService{
         private readonly receptionistAppointmentModel: Model<ReceptionistAppointmentDocument>,
     ){}
 
-    async createPreMedicalTest(createPreMedicalTestDto:CreatePreMedicalTestDto){
+    async createPreMedicalTest(createPreMedicalTestDto:CreatePreMedicalTestDto, user?: JwtPayload){
         try {
+            let hospitalId = createPreMedicalTestDto.hospitalId;
+            if (user && !user.isSystemAdmin) {
+                if (!user.hospitalId) {
+                    throw new BadRequestException('Your account is not assigned to any clinic/hospital.');
+                }
+                hospitalId = user.hospitalId;
+            }
+
             const preMedicalTest= await this.preMedicalTestModel.create({
                 patientName:createPreMedicalTestDto.patientName,
                 phone:createPreMedicalTestDto.phone,
@@ -38,12 +47,17 @@ export class PreMedicalTestService{
                 allergies:createPreMedicalTestDto.allergies,
                 medication:createPreMedicalTestDto.medication,
                 notes:createPreMedicalTestDto.notes,
-                status:createPreMedicalTestDto.status   
+                status:createPreMedicalTestDto.status,
+                hospitalId
             });
 
             try {
                 // Find corresponding appointment by patient phone number
-                const appointment = await this.receptionistAppointmentModel.findOne({ phone: createPreMedicalTestDto.phone });
+                const appQuery: Record<string, any> = { phone: createPreMedicalTestDto.phone };
+                if (hospitalId) {
+                    appQuery.hospitalId = hospitalId;
+                }
+                const appointment = await this.receptionistAppointmentModel.findOne(appQuery);
                 if (appointment) {
                     // Update patient queue entry by appointmentId
                     await this.patientQueueModel.findOneAndUpdate(
@@ -70,9 +84,13 @@ export class PreMedicalTestService{
         } 
     }
 
-    async findAllPreMedicalTests(){
+    async findAllPreMedicalTests(user?: JwtPayload){
         try {
-            const preMedicalTests= await this.preMedicalTestModel.find()
+            const query: Record<string, any> = {};
+            if (user && !user.isSystemAdmin) {
+                query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+            }
+            const preMedicalTests= await this.preMedicalTestModel.find(query)
             if (!preMedicalTests || preMedicalTests.length === 0) {
                 throw new Error('No pre-medical tests found')
             }
@@ -82,9 +100,13 @@ export class PreMedicalTestService{
         } 
     }
 
-    async findOnePreMedicalTest(id:string){
+    async findOnePreMedicalTest(id:string, user?: JwtPayload){
         try{
-            const preMedicalTest = await this.preMedicalTestModel.findById(id)
+            const query: Record<string, any> = { _id: id };
+            if (user && !user.isSystemAdmin) {
+                query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+            }
+            const preMedicalTest = await this.preMedicalTestModel.findOne(query)
         if(!preMedicalTest){
             throw new Error('Pre-medical test not found')
         }
@@ -94,9 +116,13 @@ export class PreMedicalTestService{
         }
     }
 
-    async updatePreMedicalTest(id:string,updatePreMedicalTestDto:UpdatePreMedicalTestDto){
+    async updatePreMedicalTest(id:string,updatePreMedicalTestDto:UpdatePreMedicalTestDto, user?: JwtPayload){
         try{
-            const preMedicalTest = await this.preMedicalTestModel.findById(id)
+            const query: Record<string, any> = { _id: id };
+            if (user && !user.isSystemAdmin) {
+                query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+            }
+            const preMedicalTest = await this.preMedicalTestModel.findOne(query)
             if(!preMedicalTest){
                 throw new Error('Pre-medical test not found')
             }
@@ -120,7 +146,11 @@ export class PreMedicalTestService{
 
             try {
                 // Find corresponding appointment by patient phone number
-                const appointment = await this.receptionistAppointmentModel.findOne({ phone: preMedicalTest.phone });
+                const appQuery: Record<string, any> = { phone: preMedicalTest.phone };
+                if (preMedicalTest.hospitalId) {
+                    appQuery.hospitalId = preMedicalTest.hospitalId;
+                }
+                const appointment = await this.receptionistAppointmentModel.findOne(appQuery);
                 if (appointment) {
                     // Find queue entry matching the appointmentId and update
                     await this.patientQueueModel.findOneAndUpdate(
@@ -147,13 +177,17 @@ export class PreMedicalTestService{
         }
     }
 
-    async removePreMedicalTest(id:string){
+    async removePreMedicalTest(id:string, user?: JwtPayload){
         try{
-            const preMedicalTest = await this.preMedicalTestModel.findById(id)
+            const query: Record<string, any> = { _id: id };
+            if (user && !user.isSystemAdmin) {
+                query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+            }
+            const preMedicalTest = await this.preMedicalTestModel.findOne(query)
             if(!preMedicalTest){
                 throw new Error('Pre-medical test not found')
             }
-            await this.preMedicalTestModel.findByIdAndDelete(id)
+            await this.preMedicalTestModel.deleteOne(query)
             return{
                 message:'Pre-medical test deleted successfully'
             }
@@ -161,13 +195,18 @@ export class PreMedicalTestService{
             throw this.handleServiceError(error,'Error removing pre-medical test')
         }
     }
-    async changePreMedicalTestStatus(id:string,status:boolean){
+    async changePreMedicalTestStatus(id:string,status:boolean, user?: JwtPayload){
         try{
-            const preMedicalTest = await this.preMedicalTestModel.findById(id)
+            const query: Record<string, any> = { _id: id };
+            if (user && !user.isSystemAdmin) {
+                query.hospitalId = user.hospitalId || 'invalid_hospital_id';
+            }
+            const preMedicalTest = await this.preMedicalTestModel.findOne(query)
             if(!preMedicalTest){
                 throw new Error('Pre-medical test not found')
             }
-            await this.preMedicalTestModel.findByIdAndUpdate(id,{status})
+            preMedicalTest.status = status;
+            await preMedicalTest.save()
             return{
                 message:`Pre-medical test status changed successfully`
             }
@@ -192,7 +231,8 @@ export class PreMedicalTestService{
             allergies:preMedicalTest.allergies,
             medication:preMedicalTest.medication,
             notes:preMedicalTest.notes,
-            status:preMedicalTest.status
+            status:preMedicalTest.status,
+            hospitalId:preMedicalTest.hospitalId
         }
     }
     private handleServiceError(error: unknown, fallbackMessage: string): Error {

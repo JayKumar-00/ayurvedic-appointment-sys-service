@@ -33,6 +33,9 @@ export class PatientRecord {
 
     @Prop({ trim: true })
     appointmentId?: string;
+
+    @Prop({ type: String, trim: true, index: true })
+    hospitalId?: string;
 }
 
 export const PatientRecordSchema = SchemaFactory.createForClass(PatientRecord);

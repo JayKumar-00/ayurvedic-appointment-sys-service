@@ -1,5 +1,5 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { IsEmail, IsNotEmpty, IsString, MaxLength, IsNumber, IsBoolean } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { IsEmail, IsNotEmpty, IsString, MaxLength, IsNumber, IsBoolean, IsOptional } from "class-validator";
 
 export class CreatePatientRegisterDto {
     @ApiProperty({
@@ -58,4 +58,12 @@ export class CreatePatientRegisterDto {
     @IsBoolean()
     @IsNotEmpty()
     status: boolean;
+
+    @ApiPropertyOptional({
+        description: "Hospital ID",
+        example: "60c72b2f9b1e8a001c8e4e1a"
+    })
+    @IsString()
+    @IsOptional()
+    hospitalId?: string;
 }

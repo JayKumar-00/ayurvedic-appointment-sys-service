@@ -43,6 +43,9 @@ export class ReceptionistAppointment {
     @Prop({required:true,trim:true})
     visitReason:string
 
+    @Prop({ type: String, trim: true, index: true })
+    hospitalId?: string;
+
 
 }
 

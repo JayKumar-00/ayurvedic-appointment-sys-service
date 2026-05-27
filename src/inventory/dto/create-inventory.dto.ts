@@ -1,5 +1,5 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { IsNotEmpty, IsString, IsNumber, IsDate } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { IsNotEmpty, IsString, IsNumber, IsDate, IsOptional } from "class-validator";
 
 export class CreateInventoryDto{
     @ApiProperty({
@@ -57,4 +57,12 @@ export class CreateInventoryDto{
     @IsNotEmpty()
     @IsString()
     assignedtoDisease:string;
+
+    @ApiPropertyOptional({
+        description:"Hospital ID (only for system admin)",
+        example:"60c72b2f9b1e8a001c8e4e1a"
+    })
+    @IsString()
+    @IsOptional()
+    hospitalId?:string;
 }

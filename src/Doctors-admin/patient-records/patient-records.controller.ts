@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Post, UseGuards, Req } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 import { StaffGuard } from "src/auth/guards/staff.guard";
 import { CreatePatientRecordDto } from "./dto/create-patient-record.dto";
 import { PatientRecordsService } from "./patient-records.service";
+import { JwtPayload } from "src/auth/strategies/jwt.strategy";
 
 @ApiTags('Doctor-admin-PatientRecords')
 @ApiBearerAuth()
@@ -15,14 +16,14 @@ export class PatientRecordsController {
     @Post()
     @ApiOperation({ summary: 'Save patient record' })
     @ApiResponse({ status: 201, description: 'Patient record saved successfully' })
-    async create(@Body() createDto: CreatePatientRecordDto) {
-        return this.patientRecordsService.createOrUpdate(createDto);
+    async create(@Req() req: { user: JwtPayload }, @Body() createDto: CreatePatientRecordDto) {
+        return this.patientRecordsService.createOrUpdate(createDto, req.user);
     }
 
     @Get()
     @ApiOperation({ summary: 'Get all patient records' })
     @ApiResponse({ status: 200, description: 'All patient records fetched successfully' })
-    async findAll() {
-        return this.patientRecordsService.findAll();
+    async findAll(@Req() req: { user: JwtPayload }) {
+        return this.patientRecordsService.findAll(req.user);
     }
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from "@nestjs/common";
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBadRequestResponse, ApiConflictResponse, ApiForbiddenResponse, ApiInternalServerErrorResponse } from "@nestjs/swagger";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 import { ReceptionLevelGuard } from "src/auth/guards/reception-level.guard";
@@ -7,6 +7,7 @@ import { CreateMedicineDispensingDto } from "./dto/create-medicine-dispensing.dt
 import { UpdateMedicineDispensingDto } from "./dto/update-medicine-dispensing.dto";
 import { MedicineDispensingResponseDto } from "./dto/medicine-dispensing-response.dto";
 import { MedicineDispensingService } from "./medicine-dispensing.service";
+import { JwtPayload } from "src/auth/strategies/jwt.strategy";
 
 @ApiTags('medicine-dispensing')
 @ApiBearerAuth()
@@ -24,8 +25,8 @@ export class MedicineDispensingController {
   @ApiConflictResponse({ type: ApiErrorResponseDto })
   @ApiForbiddenResponse({ type: ApiErrorResponseDto })
   @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
-  createMedicineDispensing(@Body() createDto: CreateMedicineDispensingDto) {
-    return this.medicineDispensingService.createMedicineDispensing(createDto);
+  createMedicineDispensing(@Req() req: { user: JwtPayload }, @Body() createDto: CreateMedicineDispensingDto) {
+    return this.medicineDispensingService.createMedicineDispensing(createDto, req.user);
   }
 
   @Get()
@@ -35,8 +36,8 @@ export class MedicineDispensingController {
   @ApiConflictResponse({ type: ApiErrorResponseDto })
   @ApiForbiddenResponse({ type: ApiErrorResponseDto })
   @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
-  findAllAppointments() {
-    return this.medicineDispensingService.findAllAppointments();
+  findAllAppointments(@Req() req: { user: JwtPayload }) {
+    return this.medicineDispensingService.findAllAppointments(req.user);
   }
 
   @Get(':id')
@@ -46,8 +47,8 @@ export class MedicineDispensingController {
   @ApiConflictResponse({ type: ApiErrorResponseDto })
   @ApiForbiddenResponse({ type: ApiErrorResponseDto })
   @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
-  findOne(@Param('id') id: string) {
-    return this.medicineDispensingService.findOnePatient(id);
+  findOne(@Req() req: { user: JwtPayload }, @Param('id') id: string) {
+    return this.medicineDispensingService.findOnePatient(id, req.user);
   }
 
   @Patch(':id/status')
@@ -58,10 +59,11 @@ export class MedicineDispensingController {
   @ApiForbiddenResponse({ type: ApiErrorResponseDto })
   @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
   updateStatus(
+    @Req() req: { user: JwtPayload },
     @Param('id') id: string,
     @Body('isActive') isActive: boolean
   ) {
-    return this.medicineDispensingService.changeMedicineDispensingStatus(id, isActive);
+    return this.medicineDispensingService.changeMedicineDispensingStatus(id, isActive, req.user);
   }
 
   @Patch(':id')
@@ -72,10 +74,11 @@ export class MedicineDispensingController {
   @ApiForbiddenResponse({ type: ApiErrorResponseDto })
   @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
   update(
+    @Req() req: { user: JwtPayload },
     @Param('id') id: string,
     @Body() updateDto: UpdateMedicineDispensingDto
   ) {
-    return this.medicineDispensingService.updateMedicineDispensing(id, updateDto);
+    return this.medicineDispensingService.updateMedicineDispensing(id, updateDto, req.user);
   }
 
   @Delete(':id')
@@ -85,7 +88,7 @@ export class MedicineDispensingController {
   @ApiConflictResponse({ type: ApiErrorResponseDto })
   @ApiForbiddenResponse({ type: ApiErrorResponseDto })
   @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
-  deleteAppointments(@Param('id') id: string) {
-    return this.medicineDispensingService.removeMedicineDispensing(id);
+  deleteAppointments(@Req() req: { user: JwtPayload }, @Param('id') id: string) {
+    return this.medicineDispensingService.removeMedicineDispensing(id, req.user);
   }
 }

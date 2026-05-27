@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards, Req } from "@nestjs/common";
 import { ApiBadRequestResponse, ApiBearerAuth, ApiConflictResponse, ApiForbiddenResponse, ApiInternalServerErrorResponse, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 import { ReceptionLevelGuard } from "src/auth/guards/reception-level.guard";
@@ -8,6 +8,7 @@ import { PreMedicalTestResponceDto } from "./dto/pre-medical-test-responce.dto";
 import { CreatePreMedicalTestDto } from "./dto/create-pre-medical-test.dto";
 import { UpdatePreMedicalTestDto } from "./dto/update-premedical-test.dto";
 import { ApiErrorResponseDto } from "src/common/dto/api-error-response.dto";
+import { JwtPayload } from "src/auth/strategies/jwt.strategy";
 
 @ApiTags('PreMedicalTest')
 @ApiBearerAuth()
@@ -24,8 +25,8 @@ export class PreMedicalTestController{
   @ApiConflictResponse({type:ApiErrorResponseDto})
   @ApiForbiddenResponse({type:ApiErrorResponseDto})
   @ApiInternalServerErrorResponse({type:ApiErrorResponseDto})
-  createPreMedicalTest(@Body() createDto: CreatePreMedicalTestDto) {
-    return this.preMedicalTestService.createPreMedicalTest(createDto);
+  createPreMedicalTest(@Req() req: { user: JwtPayload }, @Body() createDto: CreatePreMedicalTestDto) {
+    return this.preMedicalTestService.createPreMedicalTest(createDto, req.user);
   }
 
   @Get()
@@ -36,8 +37,8 @@ export class PreMedicalTestController{
   @ApiConflictResponse({type:ApiErrorResponseDto})
   @ApiForbiddenResponse({type:ApiErrorResponseDto})
   @ApiInternalServerErrorResponse({type:ApiErrorResponseDto})
-  findAllPreMedicalTests() {
-    return this.preMedicalTestService.findAllPreMedicalTests();
+  findAllPreMedicalTests(@Req() req: { user: JwtPayload }) {
+    return this.preMedicalTestService.findAllPreMedicalTests(req.user);
   }
 
   @Get(':id')
@@ -48,8 +49,8 @@ export class PreMedicalTestController{
   @ApiConflictResponse({type:ApiErrorResponseDto})
   @ApiForbiddenResponse({type:ApiErrorResponseDto})
   @ApiInternalServerErrorResponse({type:ApiErrorResponseDto})
-  findOne(@Param('id') id: string) {
-    return this.preMedicalTestService.findOnePreMedicalTest(id);
+  findOne(@Req() req: { user: JwtPayload }, @Param('id') id: string) {
+    return this.preMedicalTestService.findOnePreMedicalTest(id, req.user);
   }
 
   @Patch(':id/status')
@@ -61,10 +62,11 @@ export class PreMedicalTestController{
   @ApiForbiddenResponse({type:ApiErrorResponseDto})
   @ApiInternalServerErrorResponse({type:ApiErrorResponseDto})
   updateStatus(
+    @Req() req: { user: JwtPayload },
     @Param('id') id: string, 
     @Body('status') status: boolean
   ) {
-    return this.preMedicalTestService.changePreMedicalTestStatus(id, status);
+    return this.preMedicalTestService.changePreMedicalTestStatus(id, status, req.user);
   }
 
   @Patch(':id')
@@ -76,10 +78,11 @@ export class PreMedicalTestController{
   @ApiForbiddenResponse({type:ApiErrorResponseDto})
   @ApiInternalServerErrorResponse({type:ApiErrorResponseDto})
   update(
+    @Req() req: { user: JwtPayload },
     @Param('id') id: string, 
     @Body() updateDto: UpdatePreMedicalTestDto
   ) {
-    return this.preMedicalTestService.updatePreMedicalTest(id, updateDto);
+    return this.preMedicalTestService.updatePreMedicalTest(id, updateDto, req.user);
   }
 
   @Delete(':id')
@@ -90,7 +93,7 @@ export class PreMedicalTestController{
   @ApiConflictResponse({type:ApiErrorResponseDto})
   @ApiForbiddenResponse({type:ApiErrorResponseDto})
   @ApiInternalServerErrorResponse({type:ApiErrorResponseDto})
-  deletePreMedicalTest(@Param('id') id: string) {
-    return this.preMedicalTestService.removePreMedicalTest(id);
+  deletePreMedicalTest(@Req() req: { user: JwtPayload }, @Param('id') id: string) {
+    return this.preMedicalTestService.removePreMedicalTest(id, req.user);
   }
 }

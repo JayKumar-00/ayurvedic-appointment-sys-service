@@ -31,6 +31,9 @@ export class Inventory{
     @Prop({required:true})
     assignedtoDisease:string
 
+    @Prop({ type: String, trim: true, index: true })
+    hospitalId?: string;
+
 
 }
 

@@ -65,4 +65,13 @@ export class CreatePatientRecordDto {
     @IsOptional()
     @IsString()
     appointmentId?: string;
+
+    @ApiProperty({
+        description: 'hospital ID',
+        example: '60d5ecb8b392d40015f84d0b',
+        required: false
+    })
+    @IsOptional()
+    @IsString()
+    hospitalId?: string;
 }

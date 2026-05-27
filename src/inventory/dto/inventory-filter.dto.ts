@@ -101,4 +101,12 @@ export class InventoryFilterDto{
     @IsOptional()
     @IsIn(['asc','desc'])
     sortOrder:'asc'| 'desc'= 'desc'
+
+    @ApiPropertyOptional({
+        description: 'Hospital ID filter',
+        example: '60c72b2f9b1e8a001c8e4e1a'
+    })
+    @IsOptional()
+    @IsString()
+    hospitalId?: string;
 }

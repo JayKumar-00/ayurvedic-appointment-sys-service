@@ -47,5 +47,8 @@ export class PatientRegister {
         required:true
     })
     status:boolean
+
+    @Prop({ type: String, trim: true, index: true })
+    hospitalId?: string;
 }
 export const PatientRegisterSchema = SchemaFactory.createForClass(PatientRegister)
