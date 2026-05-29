@@ -379,6 +379,17 @@ export class AdminUserService implements OnModuleInit {
       throw new NotFoundException('Admin user not found');
     }
 
+    if (typeof updateAdminUserDto.email === 'string') {
+      const existingUser = await this.adminUserModel.findOne({
+        email: updateAdminUserDto.email.toLowerCase(),
+        _id: { $ne: id }
+      });
+      if (existingUser) {
+        throw new ConflictException('User with this email already exists');
+      }
+      user.email = updateAdminUserDto.email.toLowerCase();
+    }
+
     if (typeof updateAdminUserDto.name === 'string') {
       user.name = updateAdminUserDto.name;
     }
