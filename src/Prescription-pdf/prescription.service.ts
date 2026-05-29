@@ -17,6 +17,8 @@ export class PrescriptionService {
   async exportPrescription(
     id: string,
     res: Response,
+    queryDoctorName?: string,
+    querySpecialization?: string,
   ) {
     // Attempt to search by diagnosis report ID, fallback to appointment ID
     let report = await this.diagnosisReportModel.findById(id).exec();
@@ -79,7 +81,8 @@ export class PrescriptionService {
       medicines: parsedMedicines.length > 0
         ? parsedMedicines.map((m: any) => `${m.name} - ${m.dosage} - ${m.frequency}`)
         : (report.medicine ? [report.medicine] : []),
-      doctorName: 'Dr. Priya Sharma',
+      doctorName: queryDoctorName || 'Dr. Priya Sharma',
+      qualification: querySpecialization || 'B.H.M.S.',
       date: new Date(report.date).toLocaleDateString(),
     };
 
@@ -371,12 +374,12 @@ addr-1 { top: 88.7pt; }
 
     <div class="clinic-mark"></div>
     <div class="clinic-name">BalaJi Clinic</div>
-    <div class="doctor-name">Doctor Name</div>
+    <div class="doctor-name">${data.doctorName}</div>
 
     <div class="clinic-line addr-2">Address Line 2</div>
     <div class="clinic-line addr-3">Address Line 3</div>
     <div class="clinic-line addr-4">+91 9876543210</div>
-    <div class="qualification">Qualification</div>
+    <div class="qualification">${data.qualification}</div>
 
     <div class="header-rule"></div>
 

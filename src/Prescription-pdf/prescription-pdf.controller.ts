@@ -2,6 +2,7 @@ import {
     Controller,
     Get,
     Param,
+    Query,
     Res
 } from '@nestjs/common';
 import * as express from 'express';
@@ -16,11 +17,15 @@ export class PrescriptionController {
     @Get('export/:id')
     async exportPrescription(
         @Param('id') id: string,
+        @Query('doctorName') doctorName: string,
+        @Query('specialization') specialization: string,
         @Res() res: express.Response,
     ) {
         return this.prescriptionService.exportPrescription(
             id,
-            res
+            res,
+            doctorName,
+            specialization,
         );
     }
 }
